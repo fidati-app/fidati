@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 
+import { DataSourceBadge } from '@/components/debug/DataSourceBadge';
 import { HomeCategoriesRail } from '@/components/HomeCategoriesRail';
 import { HomeHero } from '@/components/HomeHero';
 import { HomeMarketplaceSections } from '@/components/home/HomeMarketplaceSections';
@@ -26,6 +27,7 @@ export default function HomeScreen() {
         <HomeHero />
 
         <View style={styles.body}>
+          <DataSourceBadge />
           <SectionHeader
             title="Categorie"
             actionLabel="Vedi tutte"
@@ -54,6 +56,7 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
   },
   body: {
+    position: 'relative',
     paddingHorizontal: Design.spacing.screen,
     paddingTop: 16,
   },

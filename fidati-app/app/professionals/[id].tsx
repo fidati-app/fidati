@@ -13,14 +13,13 @@ import { ProfessionalHeroCarousel } from '@/components/professionals/Professiona
 import { ProfessionalServiceCard } from '@/components/professionals/ProfessionalServiceCard';
 import { ServiceCategoryOfferCard } from '@/components/service/ServiceCategoryOfferCard';
 import { Colors } from '@/constants/colors';
-import {
-  findServicePackage,
-  getProfessionalServices,
-} from '@/constants/professionalServices';
 import { Design } from '@/constants/design';
 import { Spacing } from '@/constants/theme';
+import {
+  findPackageInServices,
+  useProfessionalDetail,
+} from '@/hooks/useProfessionalDetail';
 import { useProfessional } from '@/hooks/useProfessionals';
-import { getProfessionalGalleryImages } from '@/utils/professionalGallery';
 import { getProfessionalOffers } from '@/utils/professionalOffers';
 
 export default function ProfessionalDetailScreen() {
@@ -28,14 +27,7 @@ export default function ProfessionalDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const professional = useProfessional(id ?? '');
-  const services = useMemo(
-    () => (professional ? getProfessionalServices(professional.categorySlug) : []),
-    [professional],
-  );
-  const galleryImages = useMemo(
-    () => (professional ? getProfessionalGalleryImages(professional) : []),
-    [professional],
-  );
+  const { services, galleryImages } = useProfessionalDetail(id ?? '', professional);
   const offers = useMemo(
     () => (professional ? getProfessionalOffers(professional) : []),
     [professional],
@@ -60,8 +52,7 @@ export default function ProfessionalDetailScreen() {
   }
 
   const activePackage =
-    findServicePackage(professional.categorySlug, selectedPackageId ?? '') ??
-    services[0]?.packages[0];
+    findPackageInServices(services, selectedPackageId ?? '') ?? services[0]?.packages[0];
 
   const handleSelectPackage = (packageId: string) => {
     setSelectedPackageId(packageId);

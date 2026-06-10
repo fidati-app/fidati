@@ -8,9 +8,9 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { CATEGORIES } from '@/constants/categories';
 import { CATEGORY_COLORS } from '@/constants/categoryColors';
 import { Colors } from '@/constants/colors';
+import { useCategories } from '@/hooks/useCategories';
 import { Category } from '@/types';
 import { AppText } from './AppText';
 
@@ -64,6 +64,7 @@ function CategoryItem({ category, onPress }: CategoryItemProps) {
 
 export function HomeCategoriesRail() {
   const router = useRouter();
+  const categories = useCategories();
 
   return (
     <View style={styles.wrap}>
@@ -76,7 +77,7 @@ export function HomeCategoriesRail() {
           contentContainerStyle={styles.rail}
           decelerationRate="fast"
         >
-          {CATEGORIES.map((category) => (
+          {categories.map((category) => (
             <CategoryItem
               key={category.id}
               category={category}

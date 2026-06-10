@@ -5,14 +5,15 @@ import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/AppText';
 import { ServiceCategoryHero } from '@/components/service/ServiceCategoryHero';
 import { ServiceCategorySections } from '@/components/service/ServiceCategorySections';
-import { CATEGORIES } from '@/constants/categories';
 import { Colors } from '@/constants/colors';
 import { Design } from '@/constants/design';
+import { useCategories } from '@/hooks/useCategories';
 import { useProfessionalsByCategory } from '@/hooks/useProfessionals';
 
 export default function ServiceDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
-  const category = CATEGORIES.find((c) => c.slug === slug);
+  const categories = useCategories();
+  const category = categories.find((c) => c.slug === slug);
   const professionals = useProfessionalsByCategory(slug ?? '');
 
   if (!category) {

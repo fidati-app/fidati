@@ -1,13 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import {
-  HOME_OFFERS,
-  HOME_REVIEWS,
-  NEW_PROFESSIONAL_IDS,
-  POPULAR_SERVICES,
-  URGENT_PROFESSIONALS,
-} from '@/constants/homeMarketplace';
-import { getProfessionalById, MOCK_PROFESSIONALS } from '@/services/mockData';
+import { useHomeMarketplace } from '@/hooks/useHomeMarketplace';
 
 import { BookedServiceCard } from './BookedServiceCard';
 import { CategoryProfessionalsSections } from './CategoryProfessionalsSections';
@@ -23,25 +16,22 @@ import { ServiceAreasSections } from './ServiceAreasSections';
 import { TopProCard } from './TopProCard';
 import { UrgentProCard } from './UrgentProCard';
 
-const topProfessionals = [...MOCK_PROFESSIONALS]
-  .sort((a, b) => b.rating - a.rating || b.reviewCount - a.reviewCount)
-  .slice(0, 4);
-
-const newProfessionals = NEW_PROFESSIONAL_IDS.map((id) => getProfessionalById(id)).filter(
-  Boolean,
-) as NonNullable<ReturnType<typeof getProfessionalById>>[];
-
 export function HomeMarketplaceSections() {
-  const urgentItems = URGENT_PROFESSIONALS.map((item) => {
-    const professional = getProfessionalById(item.professionalId);
-    return professional ? { professional, badge: item.badge } : null;
-  }).filter(Boolean) as { professional: NonNullable<ReturnType<typeof getProfessionalById>>; badge: string }[];
+  const {
+    popularServices,
+    offers,
+    reviews,
+    topProfessionals,
+    urgentItems,
+    newProfessionals,
+    professionals,
+  } = useHomeMarketplace();
 
   return (
     <View style={styles.root}>
       <HomeSection title="🔥 Servizi più prenotati questa settimana" first>
         <HomeCarousel gap={10}>
-          {POPULAR_SERVICES.map((service) => (
+          {popularServices.map((service) => (
             <BookedServiceCard key={service.id} service={service} />
           ))}
         </HomeCarousel>
@@ -55,7 +45,7 @@ export function HomeMarketplaceSections() {
         </HomeCarousel>
       </HomeSection>
 
-      <CategoryProfessionalsSections />
+      <CategoryProfessionalsSections professionals={professionals} />
 
       <HomeSection title="🏆 Top professionisti della settimana" actionLabel="Vedi tutti" highlight="top">
         <HomeCarousel gap={10}>
@@ -79,7 +69,7 @@ export function HomeMarketplaceSections() {
 
       <HomeSection title="Ultime recensioni">
         <HomeCarousel gap={10}>
-          {HOME_REVIEWS.map((review) => (
+          {reviews.map((review) => (
             <ReviewCard key={review.id} review={review} />
           ))}
         </HomeCarousel>
@@ -87,7 +77,7 @@ export function HomeMarketplaceSections() {
 
       <HomeSection title="Offerte del momento">
         <HomeCarousel gap={10}>
-          {HOME_OFFERS.map((offer) => (
+          {offers.map((offer) => (
             <OfferCard key={offer.id} offer={offer} />
           ))}
         </HomeCarousel>

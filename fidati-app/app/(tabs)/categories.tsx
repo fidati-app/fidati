@@ -4,12 +4,13 @@ import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 
 import { CategoriesHero } from '@/components/categories/CategoriesHero';
 import { CategoryImageCard } from '@/components/categories/CategoryImageCard';
-import { CATEGORIES } from '@/constants/categories';
 import { Colors } from '@/constants/colors';
 import { Design } from '@/constants/design';
+import { useCategories } from '@/hooks/useCategories';
 
 export default function CategoriesScreen() {
   const tabBarHeight = useBottomTabBarHeight();
+  const categories = useCategories();
 
   return (
     <>
@@ -25,7 +26,7 @@ export default function CategoriesScreen() {
         <CategoriesHero />
 
         <View style={styles.body}>
-          {CATEGORIES.map((category) => (
+          {categories.map((category) => (
             <CategoryImageCard key={category.id} category={category} />
           ))}
         </View>

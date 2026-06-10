@@ -3,22 +3,32 @@ import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { ProfessionalCard } from '@/components/ProfessionalCard';
-import { CATEGORIES } from '@/constants/categories';
 import { CATEGORY_COLORS, getCategoryTintColors } from '@/constants/categoryColors';
 import { Design } from '@/constants/design';
-import { getTopProfessionalsByCategory } from '@/services/mockData';
+import { useCategories } from '@/hooks/useCategories';
+import { getTopProfessionalsByCategoryFromList } from '@/services/homeService';
+import { Professional } from '@/types';
 
 import { HomeCarousel } from './HomeCarousel';
 import { HomeSection } from './HomeSection';
 
-export function CategoryProfessionalsSections() {
+interface CategoryProfessionalsSectionsProps {
+  professionals: Professional[];
+}
+
+export function CategoryProfessionalsSections({ professionals }: CategoryProfessionalsSectionsProps) {
   const router = useRouter();
+  const categories = useCategories();
 
   return (
     <>
-      {CATEGORIES.map((category) => {
-        const professionals = getTopProfessionalsByCategory(category.slug, 3);
-        if (professionals.length === 0) return null;
+      {categories.map((category) => {
+        const categoryProfessionals = getTopProfessionalsByCategoryFromList(
+          professionals,
+          category.slug,
+          3,
+        );
+        if (categoryProfessionals.length === 0) return null;
 
         const accent = CATEGORY_COLORS[category.slug];
         const tint = getCategoryTintColors(category.slug);
@@ -36,7 +46,7 @@ export function CategoryProfessionalsSections() {
             onAction={() => router.push(`/service/${category.slug}`)}
           >
             <HomeCarousel gap={10}>
-              {professionals.map((professional) => (
+              {categoryProfessionals.map((professional) => (
                 <View key={professional.id} style={styles.card}>
                   <ProfessionalCard professional={professional} />
                 </View>
