@@ -1,0 +1,26 @@
+/** Palette Fidati Pro — strumento di lavoro professionale */
+export const Colors = {
+  navy: '#07254A',
+  primary: '#07254A',
+  white: '#FFFFFF',
+  background: '#F4F6F9',
+  card: '#FFFFFF',
+  text: '#07254A',
+  textSecondary: '#64748B',
+  textMuted: '#94A3B8',
+  border: '#E2E8F0',
+  borderLight: '#F1F5F9',
+  success: '#10B981',
+  successSoft: 'rgba(16, 185, 129, 0.1)',
+  pending: '#F97316',
+  pendingSoft: 'rgba(249, 115, 22, 0.12)',
+  error: '#EF4444',
+  errorSoft: 'rgba(239, 68, 68, 0.08)',
+  unavailable: '#94A3B8',
+  star: '#FBBF24',
+  overlay: 'rgba(7, 37, 74, 0.04)',
+  /** Chat — allineato all'app cliente Fidati */
+  accent: '#10B981',
+  chatText: '#010D20',
+  heroGradient: ['#010D20', '#031f42', '#042a55'] as const,
+} as const;
