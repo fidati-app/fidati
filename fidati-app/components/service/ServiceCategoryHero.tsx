@@ -21,11 +21,16 @@ import { ServiceHeroStats } from './ServiceHeroStats';
 interface ServiceCategoryHeroProps {
   category: Category;
   professionals: Professional[];
+  title?: string;
 }
 
 const HERO_HEIGHT = 248;
 
-export function ServiceCategoryHero({ category, professionals }: ServiceCategoryHeroProps) {
+export function ServiceCategoryHero({
+  category,
+  professionals,
+  title,
+}: ServiceCategoryHeroProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const accent = CATEGORY_COLORS[category.slug];
@@ -58,8 +63,8 @@ export function ServiceCategoryHero({ category, professionals }: ServiceCategory
           <View style={[styles.iconBadge, { borderColor: getCategoryBorderColor(category.slug) }]}>
             <Ionicons name={category.icon} size={18} color={accent} />
           </View>
-          <AppText style={styles.name} numberOfLines={1}>
-            {category.name}
+          <AppText style={styles.name} numberOfLines={2}>
+            {title ?? category.name}
           </AppText>
         </View>
         <AppText style={styles.description} numberOfLines={2}>

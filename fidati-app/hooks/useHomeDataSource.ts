@@ -9,11 +9,12 @@ import {
 const INITIAL_LOADING: HomeDataSourceState = {
   status: 'loading',
   pendingCount: 5,
+  queries: [],
 };
 
 export function useHomeDataSource(): HomeDataSourceState {
   const [state, setState] = useState<HomeDataSourceState>(() =>
-    __DEV__ ? INITIAL_LOADING : { status: 'mock' },
+    __DEV__ ? INITIAL_LOADING : { status: 'mock', fallbackTables: [], queries: [] },
   );
 
   useEffect(() => {
@@ -21,7 +22,14 @@ export function useHomeDataSource(): HomeDataSourceState {
 
     const update = () => setState(computeHomeDataSource());
     update();
-    return subscribeDataSource(update);
+
+    const unsubscribe = subscribeDataSource(update);
+    const tick = setInterval(update, 250);
+
+    return () => {
+      unsubscribe();
+      clearInterval(tick);
+    };
   }, []);
 
   return state;

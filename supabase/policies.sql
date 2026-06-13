@@ -38,7 +38,7 @@ ALTER TABLE home_service_tiles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "public_read_service_categories"
   ON service_categories FOR SELECT
-  USING (true);
+  USING (is_active = true);
 
 CREATE POLICY "public_read_services"
   ON services FOR SELECT
@@ -63,6 +63,19 @@ CREATE POLICY "public_read_professional_packages"
 CREATE POLICY "public_read_professional_zones"
   ON professional_zones FOR SELECT
   USING (true);
+
+CREATE POLICY "professionals_manage_own_zones"
+  ON professional_zones FOR ALL
+  USING (
+    professional_id IN (
+      SELECT id FROM professionals WHERE auth_user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    professional_id IN (
+      SELECT id FROM professionals WHERE auth_user_id = auth.uid()
+    )
+  );
 
 CREATE POLICY "public_read_professional_portfolio"
   ON professional_portfolio FOR SELECT
@@ -115,6 +128,10 @@ CREATE POLICY "professionals_select_own"
 CREATE POLICY "professionals_update_own"
   ON professionals FOR UPDATE
   USING (auth.uid() = auth_user_id);
+
+CREATE POLICY "professionals_insert_own"
+  ON professionals FOR INSERT
+  WITH CHECK (auth.uid() = auth_user_id);
 
 CREATE POLICY "professionals_manage_own_services"
   ON professional_services FOR ALL

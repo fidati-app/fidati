@@ -250,60 +250,197 @@ export const PROFESSIONAL_SERVICES: Record<CategorySlug, ProfessionalServiceItem
       ],
     },
   ],
-  tuttofare: [
+  'montaggio-mobili': [
     {
-      id: 'tut-furniture',
+      id: 'mob-furniture',
       title: 'Montaggio mobili',
       icon: 'cube-outline',
       description: 'IKEA, cucine e armadi',
       fromPrice: 35,
       packages: [
-        { id: 'tut-furniture-b', tier: 'base', title: 'Singolo mobile', description: 'Comò, libreria, scrivania', price: 35, duration: '1.5 ore' },
-        { id: 'tut-furniture-s', tier: 'standard', title: 'Camera completa', description: 'Fino a 4 mobili', price: 75, duration: '3 ore' },
+        { id: 'mob-furniture-b', tier: 'base', title: 'Singolo mobile', description: 'Comò, libreria, scrivania', price: 35, duration: '1.5 ore' },
+        { id: 'mob-furniture-s', tier: 'standard', title: 'Camera completa', description: 'Fino a 4 mobili', price: 75, duration: '3 ore' },
       ],
     },
     {
-      id: 'tut-fix',
-      title: 'Riparazioni casa',
-      icon: 'hammer-outline',
-      description: 'Tapparelle, serrature, piccoli guasti',
-      fromPrice: 40,
-      packages: [
-        { id: 'tut-fix-b', tier: 'base', title: 'Intervento singolo', description: 'Una riparazione', price: 40, duration: '1 ora' },
-        { id: 'tut-fix-s', tier: 'standard', title: 'Pacchetto 3 interventi', description: 'Nella stessa visita', price: 95, duration: '3 ore' },
-      ],
-    },
-    {
-      id: 'tut-small',
-      title: 'Piccoli lavori',
+      id: 'mob-small',
+      title: 'Fissaggi e mensole',
       icon: 'construct-outline',
-      description: 'Appendere quadri, mensole, tende',
+      description: 'Appendere quadri, mensole, TV',
       fromPrice: 30,
       packages: [
-        { id: 'tut-small-b', tier: 'base', title: '1 ora lavoro', description: 'Lista interventi brevi', price: 30, duration: '1 ora' },
-        { id: 'tut-small-s', tier: 'standard', title: '2 ore lavoro', description: 'Più attività insieme', price: 55, duration: '2 ore' },
+        { id: 'mob-small-b', tier: 'base', title: '1 ora lavoro', description: 'Lista interventi brevi', price: 30, duration: '1 ora' },
+        { id: 'mob-small-s', tier: 'standard', title: '2 ore lavoro', description: 'Più attività insieme', price: 55, duration: '2 ore' },
+      ],
+    },
+  ],
+  fabbri: [
+    {
+      id: 'fab-lock',
+      title: 'Aperture e serrature',
+      icon: 'key-outline',
+      description: 'Porte bloccate e sostituzione serrature',
+      fromPrice: 50,
+      packages: [
+        { id: 'fab-lock-b', tier: 'base', title: 'Apertura porta', description: 'Intervento urgente', price: 50, duration: '1 ora' },
+        { id: 'fab-lock-s', tier: 'standard', title: 'Sostituzione serratura', description: 'Con collaudo', price: 90, duration: '2 ore' },
       ],
     },
     {
-      id: 'tut-paint',
-      title: 'Tinteggiatura',
+      id: 'fab-iron',
+      title: 'Lavori in ferro',
+      icon: 'hammer-outline',
+      description: 'Ringhiere, cancelli e strutture',
+      fromPrice: 80,
+      packages: [
+        { id: 'fab-iron-b', tier: 'base', title: 'Riparazione', description: 'Singolo elemento', price: 80, duration: '2 ore' },
+        { id: 'fab-iron-p', tier: 'premium', title: 'Realizzazione', description: 'Su misura', price: 180, duration: '4 ore' },
+      ],
+    },
+  ],
+  imbianchini: [
+    {
+      id: 'imb-paint',
+      title: 'Tinteggiatura interni',
       icon: 'color-palette-outline',
       description: 'Pareti, soffitti e ritocchi',
       fromPrice: 70,
       packages: [
-        { id: 'tut-paint-b', tier: 'base', title: 'Singola parete', description: 'Fino a 12 mq', price: 70, duration: '3 ore' },
-        { id: 'tut-paint-p', tier: 'premium', title: 'Stanza intera', description: 'Fino a 15 mq', price: 150, duration: '6 ore' },
+        { id: 'imb-paint-b', tier: 'base', title: 'Singola parete', description: 'Fino a 12 mq', price: 70, duration: '3 ore' },
+        { id: 'imb-paint-p', tier: 'premium', title: 'Stanza intera', description: 'Fino a 15 mq', price: 150, duration: '6 ore' },
       ],
     },
     {
-      id: 'tut-door',
-      title: 'Serramenti',
+      id: 'imb-ext',
+      title: 'Pittura esterni',
+      icon: 'home-outline',
+      description: 'Facciate e balconi',
+      fromPrice: 120,
+      packages: [
+        { id: 'imb-ext-b', tier: 'base', title: 'Balcone', description: 'Fino a 20 mq', price: 120, duration: '4 ore' },
+        { id: 'imb-ext-s', tier: 'standard', title: 'Facciata parziale', description: 'Fino a 40 mq', price: 220, duration: '8 ore' },
+      ],
+    },
+  ],
+  serramentisti: [
+    {
+      id: 'ser-window',
+      title: 'Infissi e finestre',
+      icon: 'albums-outline',
+      description: 'Sostituzione e regolazione',
+      fromPrice: 65,
+      packages: [
+        { id: 'ser-window-b', tier: 'base', title: 'Regolazione', description: 'Singolo infisso', price: 65, duration: '1.5 ore' },
+        { id: 'ser-window-s', tier: 'standard', title: 'Sostituzione', description: 'Finestra standard', price: 180, duration: '4 ore' },
+      ],
+    },
+    {
+      id: 'ser-door',
+      title: 'Porte e serramenti',
       icon: 'lock-closed-outline',
       description: 'Porte, maniglie e cerniere',
       fromPrice: 45,
       packages: [
-        { id: 'tut-door-b', tier: 'base', title: 'Regolazione porta', description: 'Cerniere e chiudiporta', price: 45, duration: '1 ora' },
-        { id: 'tut-door-s', tier: 'standard', title: 'Sostituzione serratura', description: 'Con collaudo', price: 80, duration: '2 ore' },
+        { id: 'ser-door-b', tier: 'base', title: 'Regolazione porta', description: 'Cerniere e chiudiporta', price: 45, duration: '1 ora' },
+        { id: 'ser-door-s', tier: 'standard', title: 'Sostituzione serratura', description: 'Con collaudo', price: 80, duration: '2 ore' },
+      ],
+    },
+  ],
+  caldaie: [
+    {
+      id: 'cal-boiler',
+      title: 'Caldaia e riscaldamento',
+      icon: 'flame-outline',
+      description: 'Manutenzione e assistenza',
+      fromPrice: 70,
+      packages: [
+        { id: 'cal-boiler-b', tier: 'base', title: 'Controllo annuale', description: 'Pulizia e verifica', price: 70, duration: '1.5 ore' },
+        { id: 'cal-boiler-p', tier: 'premium', title: 'Manutenzione full', description: 'Ricambi base inclusi', price: 130, duration: '3 ore' },
+      ],
+    },
+  ],
+  condizionatori: [
+    {
+      id: 'con-ac',
+      title: 'Condizionatori',
+      icon: 'snow-outline',
+      description: 'Installazione e manutenzione',
+      fromPrice: 80,
+      packages: [
+        { id: 'con-ac-b', tier: 'base', title: 'Pulizia split', description: 'Singola unità', price: 80, duration: '2 ore' },
+        { id: 'con-ac-s', tier: 'standard', title: 'Installazione', description: 'Mono split', price: 250, duration: '4 ore' },
+      ],
+    },
+  ],
+  'traslochi-sgomberi': [
+    {
+      id: 'tra-move',
+      title: 'Traslochi',
+      icon: 'car-outline',
+      description: 'Trasporto mobili e scatoloni',
+      fromPrice: 120,
+      packages: [
+        { id: 'tra-move-b', tier: 'base', title: 'Monolocale', description: 'Fino a 30 mq', price: 120, duration: '4 ore' },
+        { id: 'tra-move-s', tier: 'standard', title: 'Bilocale', description: 'Fino a 60 mq', price: 220, duration: '6 ore' },
+      ],
+    },
+    {
+      id: 'tra-clear',
+      title: 'Sgomberi',
+      icon: 'trash-outline',
+      description: 'Svuotamento cantine e locali',
+      fromPrice: 90,
+      packages: [
+        { id: 'tra-clear-b', tier: 'base', title: 'Piccolo locale', description: 'Fino a 15 mq', price: 90, duration: '3 ore' },
+        { id: 'tra-clear-s', tier: 'standard', title: 'Cantina/garage', description: 'Fino a 30 mq', price: 160, duration: '5 ore' },
+      ],
+    },
+  ],
+  antennisti: [
+    {
+      id: 'ant-tv',
+      title: 'Antenne TV',
+      icon: 'radio-outline',
+      description: 'Installazione e puntamento',
+      fromPrice: 60,
+      packages: [
+        { id: 'ant-tv-b', tier: 'base', title: 'Puntamento', description: 'Segnale ottimizzato', price: 60, duration: '1.5 ore' },
+        { id: 'ant-tv-s', tier: 'standard', title: 'Nuova antenna', description: 'Con installazione', price: 120, duration: '3 ore' },
+      ],
+    },
+    {
+      id: 'ant-sat',
+      title: 'Parabole satellitari',
+      icon: 'planet-outline',
+      description: 'Installazione e configurazione',
+      fromPrice: 90,
+      packages: [
+        { id: 'ant-sat-b', tier: 'base', title: 'Configurazione', description: 'Decoder e LNB', price: 90, duration: '2 ore' },
+        { id: 'ant-sat-p', tier: 'premium', title: 'Installazione completa', description: 'Parabola + cavi', price: 180, duration: '4 ore' },
+      ],
+    },
+  ],
+  'tende-da-sole': [
+    {
+      id: 'ten-install',
+      title: 'Installazione tende',
+      icon: 'sunny-outline',
+      description: 'Tende da sole e pergole',
+      fromPrice: 85,
+      packages: [
+        { id: 'ten-install-b', tier: 'base', title: 'Balcone', description: 'Fino a 3 mq', price: 85, duration: '2 ore' },
+        { id: 'ten-install-s', tier: 'standard', title: 'Terrazzo', description: 'Fino a 8 mq', price: 150, duration: '4 ore' },
+      ],
+    },
+    {
+      id: 'ten-maint',
+      title: 'Manutenzione tende',
+      icon: 'build-outline',
+      description: 'Riparazione e sostituzione teli',
+      fromPrice: 55,
+      packages: [
+        { id: 'ten-maint-b', tier: 'base', title: 'Regolazione', description: 'Meccanismo e guide', price: 55, duration: '1.5 ore' },
+        { id: 'ten-maint-s', tier: 'standard', title: 'Sostituzione telo', description: 'Con materiali base', price: 110, duration: '3 ore' },
       ],
     },
   ],

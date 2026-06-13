@@ -5,6 +5,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { AppServiceZoneProvider } from '@/components/providers/AppServiceZoneProvider';
 import { Colors } from '@/constants/colors';
 
 SplashScreen.preventAutoHideAsync();
@@ -16,8 +17,9 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style="dark" />
-      <Stack
+      <AppServiceZoneProvider>
+        <StatusBar style="dark" />
+        <Stack
         screenOptions={{
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
@@ -31,6 +33,10 @@ export default function RootLayout() {
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen
           name="professionals/[id]"
+          options={{ headerShown: false, animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="categories/[slug]"
           options={{ headerShown: false, animation: 'slide_from_right' }}
         />
         <Stack.Screen
@@ -55,6 +61,7 @@ export default function RootLayout() {
           options={{ title: 'Garanzia Fidati' }}
         />
       </Stack>
+      </AppServiceZoneProvider>
     </GestureHandlerRootView>
   );
 }

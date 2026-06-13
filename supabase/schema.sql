@@ -32,7 +32,7 @@ CREATE TYPE profile_step_id AS ENUM ('photo', 'bio', 'services', 'portfolio', 'z
 
 CREATE TABLE service_categories (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  legacy_id       TEXT UNIQUE,
+  legacy_id       TEXT,
   slug            TEXT NOT NULL UNIQUE,
   name            TEXT NOT NULL,
   icon            TEXT NOT NULL,
@@ -40,6 +40,8 @@ CREATE TABLE service_categories (
   professional_count INTEGER NOT NULL DEFAULT 0,
   home_count      INTEGER NOT NULL DEFAULT 0,
   sort_order      INTEGER NOT NULL DEFAULT 0,
+  image_url       TEXT,
+  is_active       BOOLEAN NOT NULL DEFAULT true,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );

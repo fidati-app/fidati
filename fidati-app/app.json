@@ -8,7 +8,10 @@
     "scheme": "fidati",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Fidati usa la tua posizione per mostrarti i professionisti disponibili nella tua zona."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +20,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
     },
     "web": {
       "bundler": "metro",
@@ -40,6 +44,12 @@
         {
           "photosPermission": "Consenti l'accesso alle foto per allegare immagini alla prenotazione.",
           "cameraPermission": "Consenti l'accesso alla fotocamera per scattare foto da allegare alla prenotazione."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Fidati usa la tua posizione per mostrarti i professionisti disponibili nella tua zona."
         }
       ]
     ],

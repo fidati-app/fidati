@@ -1,13 +1,39 @@
 import { Ionicons } from '@expo/vector-icons';
 
+export type ServiceCity =
+  | 'Barletta'
+  | 'Andria'
+  | 'Trani'
+  | 'Bisceglie'
+  | 'Margherita di Savoia';
+
 export type CategorySlug =
-  | 'pulizie'
-  | 'idraulici'
   | 'elettricisti'
+  | 'idraulici'
+  | 'fabbri'
   | 'giardinieri'
-  | 'tuttofare';
+  | 'pulizie'
+  | 'imbianchini'
+  | 'serramentisti'
+  | 'caldaie'
+  | 'condizionatori'
+  | 'traslochi-sgomberi'
+  | 'antennisti'
+  | 'montaggio-mobili'
+  | 'tende-da-sole';
 
 export type CategoryIcon = keyof typeof Ionicons.glyphMap;
+
+export interface ItalianMunicipality {
+  name: string;
+  province: string;
+  region: string;
+  istatCode: string;
+  latitude?: number;
+  longitude?: number;
+  /** Abitanti (Censimento ISTAT 2011) — usato per ordinare i suggerimenti di ricerca */
+  population?: number;
+}
 
 export type PackageTier = 'base' | 'standard' | 'premium';
 
@@ -54,6 +80,18 @@ export interface Professional {
   bio: string;
   whyChoose: string[];
   packages: ServicePackage[];
+  /** Sede operativa principale */
+  city: ServiceCity;
+  /** Comuni in cui opera */
+  serviceAreas: ServiceCity[];
+  /** Badge urgenza da Supabase (es. "Oggi") */
+  urgentBadge?: string | null;
+  /** In evidenza come nuovo professionista */
+  isNewFeatured?: boolean;
+  /** Data iscrizione (Supabase `created_at`) */
+  createdAt?: string;
+  /** Data verifica, se disponibile in futuro */
+  verifiedAt?: string;
 }
 
 export type BookingStatus = 'confirmed' | 'incoming' | 'completed' | 'cancelled';

@@ -1,19 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { HomeNotificationsBell } from '@/components/notifications/HomeNotificationsBell';
+import { HomeSearchBar } from '@/components/search/HomeSearchBar';
+import { SelectedCityZoneRow } from '@/components/zone/SelectedCityChip';
 import { Colors } from '@/constants/colors';
-import { QUICK_FILTERS } from '@/constants/categories';
 import { Design } from '@/constants/design';
+import { useServiceZone } from '@/context/ServiceZoneContext';
 import { HomePromoBanner } from './home/HomePromoBanner';
 import { AppText } from './AppText';
-import { FilterPill } from './FilterPill';
 import { Logo } from './Logo';
-import { SearchBar } from './SearchBar';
 
 export function HomeHero() {
   const insets = useSafeAreaInsets();
+  const { selectedCity, hasSelectedCity, clearSelectedCity } = useServiceZone();
 
   return (
     <LinearGradient
@@ -26,9 +28,7 @@ export function HomeHero() {
 
       <View style={styles.topBar}>
         <Logo size="lg" />
-        <Pressable style={styles.bell} hitSlop={8}>
-          <Ionicons name="notifications-outline" size={21} color={Colors.white} />
-        </Pressable>
+        <HomeNotificationsBell />
       </View>
 
       <View style={styles.copy}>
@@ -41,32 +41,21 @@ export function HomeHero() {
       </View>
 
       <View style={styles.searchCard}>
-        <SearchBar
-          size="large"
-          iconPosition="right"
-          placeholder="Cerca pulizie, idraulico, giardiniere..."
-        />
+        <HomeSearchBar />
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filters}
-      >
-        {QUICK_FILTERS.map((filter) => (
-          <FilterPill
-            key={filter.id}
-            label={filter.label}
-            icon={filter.icon}
-            variant="dark"
-          />
-        ))}
-      </ScrollView>
+      {hasSelectedCity && selectedCity ? (
+        <View style={styles.chipRow}>
+          <SelectedCityZoneRow city={selectedCity} onClear={clearSelectedCity} variant="dark" />
+        </View>
+      ) : null}
 
-      <HomePromoBanner />
+      <View style={hasSelectedCity ? styles.promoBanner : undefined}>
+        <HomePromoBanner />
+      </View>
 
       <View style={styles.trust}>
-        <Ionicons name="shield-checkmark" size={15} color={Colors.accent} />
+        <Ionicons name="shield-checkmark" size={14} color={Colors.accent} />
         <AppText style={styles.trustText}>
           Oltre 2.400 professionisti verificati in Italia
         </AppText>
@@ -78,7 +67,7 @@ export function HomeHero() {
 const styles = StyleSheet.create({
   hero: {
     paddingHorizontal: Design.spacing.screen,
-    paddingBottom: 12,
+    paddingBottom: 8,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     overflow: 'hidden',
@@ -107,16 +96,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 14,
   },
-  bell: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   copy: {
     gap: 4,
     marginBottom: 10,
@@ -138,23 +117,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   searchCard: {
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  filters: {
-    flexDirection: 'row',
-    gap: 6,
-    marginBottom: 8,
-    paddingRight: Design.spacing.screen,
+  chipRow: {
+    marginBottom: 10,
+  },
+  promoBanner: {
+    marginTop: 4,
   },
   trust: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
+    gap: 6,
+    marginTop: 4,
   },
   trustText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.55)',
+    lineHeight: 14,
   },
 });

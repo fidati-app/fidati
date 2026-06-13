@@ -17,15 +17,17 @@ import { Category } from '@/types';
 
 interface CategoryImageCardProps {
   category: Category;
+  zoneProCount?: number;
 }
 
 const CARD_HEIGHT = 156;
 
-export function CategoryImageCard({ category }: CategoryImageCardProps) {
+export function CategoryImageCard({ category, zoneProCount }: CategoryImageCardProps) {
   const router = useRouter();
   const accent = CATEGORY_COLORS[category.slug];
   const tint = getCategoryTintColors(category.slug);
   const coverUri = CATEGORY_COVER_IMAGES[category.slug];
+  const proCount = zoneProCount ?? category.professionalCount;
 
   return (
     <Pressable
@@ -59,7 +61,7 @@ export function CategoryImageCard({ category }: CategoryImageCardProps) {
         </AppText>
         <View style={styles.countRow}>
           <AppText style={styles.count}>
-            {category.professionalCount} professionisti verificati
+            {proCount} professionisti verificati
           </AppText>
           <Ionicons name="arrow-forward" size={20} color={Colors.accent} />
         </View>

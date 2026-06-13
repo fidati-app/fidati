@@ -1,3 +1,4 @@
+import { devLog, devLogSupabaseError } from '@/lib/devLog';
 import { supabase } from '@/lib/supabaseClient';
 import { AccountStatus, MyProfessional, ProDashboardStats, ProProfile, ProService } from '@/types';
 
@@ -182,17 +183,50 @@ function mapMyProfessionalRow(row: MyProfessionalRow): MyProfessional {
 export async function fetchMyProfessionalByAuthUserId(
   authUserId: string,
 ): Promise<MyProfessional | null> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  devLog('fetchMyProfessional auth user id:', authUserId);
+  devLog('fetchMyProfessional session user id:', session?.user?.id ?? '(none)');
+  devLog('fetchMyProfessional query:', {
+    table: 'professionals',
+    filter: { auth_user_id: authUserId },
+    note: 'colonna auth_user_id (non id / professional_id)',
+  });
+
+  const { data: probeRow, error: probeError } = await supabase
+    .from('professionals')
+    .select('id, auth_user_id')
+    .eq('auth_user_id', authUserId)
+    .maybeSingle();
+
+  devLog('fetchMyProfessional probe data:', probeRow);
+  if (probeError) {
+    devLogSupabaseError('fetchMyProfessional probe', probeError);
+    throw probeError;
+  }
+
+  if (!probeRow) {
+    devLog('fetchMyProfessional probe: nessuna riga per auth_user_id', authUserId);
+    return null;
+  }
+
   const { data, error } = await supabase
     .from('professionals')
     .select(MY_PROFESSIONAL_SELECT)
     .eq('auth_user_id', authUserId)
     .maybeSingle();
 
+  devLog('fetchMyProfessional full select data:', data ? { id: data.id, auth_user_id: data.auth_user_id } : null);
+
   if (error) {
+    devLogSupabaseError('fetchMyProfessional full select', error);
     throw error;
   }
 
   if (!data) {
+    devLog('fetchMyProfessional full select: nessuna riga per auth_user_id', authUserId);
     return null;
   }
 

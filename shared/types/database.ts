@@ -32,6 +32,8 @@ export interface ServiceCategory extends Timestamps {
   professional_count: number;
   home_count: number;
   sort_order: number;
+  image_url: string | null;
+  is_active: boolean;
 }
 
 export interface Service extends Timestamps {

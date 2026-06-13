@@ -1,23 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
+import { CATEGORY_SLUGS } from '@/constants/categoryCatalog';
 import {
   fetchProfessionalByLegacyId,
   fetchProfessionals,
   fetchProfessionalsByCategory,
 } from '@/services/professionalsService';
-import {
-  getAvailableToday,
-  getProfessionalById,
-  getProfessionalsByCategory,
-  getRecommendedProfessionals,
-  MOCK_PROFESSIONALS,
-} from '@/services/mockData';
 import { CategorySlug, Professional } from '@/types';
 
 export function useRecommendedProfessionals() {
-  const [professionals, setProfessionals] = useState<Professional[]>(
-    () => getRecommendedProfessionals(),
-  );
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -27,7 +19,7 @@ export function useRecommendedProfessionals() {
         .filter((p) => p.availableToday)
         .sort((a, b) => b.rating - a.rating)
         .slice(0, 6);
-      if (recommended.length > 0) setProfessionals(recommended);
+      setProfessionals(recommended);
     });
     return () => {
       active = false;
@@ -38,14 +30,13 @@ export function useRecommendedProfessionals() {
 }
 
 export function useAvailableToday() {
-  const [professionals, setProfessionals] = useState<Professional[]>(() => getAvailableToday());
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
 
   useEffect(() => {
     let active = true;
     fetchProfessionals().then((data) => {
       if (!active) return;
-      const available = data.filter((p) => p.availableToday);
-      if (available.length > 0) setProfessionals(available);
+      setProfessionals(data.filter((p) => p.availableToday));
     });
     return () => {
       active = false;
@@ -56,11 +47,9 @@ export function useAvailableToday() {
 }
 
 export function useProfessionalsByCategory(slug: string) {
-  const fallback = useMemo(() => getProfessionalsByCategory(slug), [slug]);
-  const [professionals, setProfessionals] = useState<Professional[]>(fallback);
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
 
   useEffect(() => {
-    setProfessionals(fallback);
     let active = true;
     fetchProfessionalsByCategory(slug).then((data) => {
       if (active) setProfessionals(data);
@@ -68,32 +57,34 @@ export function useProfessionalsByCategory(slug: string) {
     return () => {
       active = false;
     };
-  }, [slug, fallback]);
+  }, [slug]);
 
   return professionals;
 }
 
 export function useProfessional(id: string) {
-  const fallback = useMemo(() => getProfessionalById(id), [id]);
-  const [professional, setProfessional] = useState<Professional | undefined>(fallback);
+  const [professional, setProfessional] = useState<Professional | undefined>();
 
   useEffect(() => {
-    setProfessional(fallback);
-    if (!id) return;
+    if (!id) {
+      setProfessional(undefined);
+      return;
+    }
     let active = true;
+    setProfessional(undefined);
     fetchProfessionalByLegacyId(id).then((data) => {
-      if (active && data) setProfessional(data);
+      if (active) setProfessional(data ?? undefined);
     });
     return () => {
       active = false;
     };
-  }, [id, fallback]);
+  }, [id]);
 
   return professional;
 }
 
 export function useAllProfessionals() {
-  const [professionals, setProfessionals] = useState<Professional[]>(MOCK_PROFESSIONALS);
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -109,5 +100,5 @@ export function useAllProfessionals() {
 }
 
 export function isValidCategorySlug(slug: string): slug is CategorySlug {
-  return ['pulizie', 'idraulici', 'elettricisti', 'giardinieri', 'tuttofare'].includes(slug);
+  return CATEGORY_SLUGS.includes(slug as CategorySlug);
 }

@@ -20,6 +20,7 @@ import { ServiceSubTypeTile } from './ServiceSubTypeTile';
 interface ServiceCategorySectionsProps {
   category: Category;
   professionals: Professional[];
+  emptyState?: ReactNode;
 }
 
 function CompactSectionTitle({ children }: { children: ReactNode }) {
@@ -29,6 +30,7 @@ function CompactSectionTitle({ children }: { children: ReactNode }) {
 export function ServiceCategorySections({
   category,
   professionals,
+  emptyState,
 }: ServiceCategorySectionsProps) {
   const subServices = CATEGORY_SUB_SERVICES[category.slug];
   const offers = CATEGORY_OFFERS[category.slug];
@@ -78,13 +80,15 @@ export function ServiceCategorySections({
           compact
         />
         <View style={styles.list}>
-          {professionals.map((professional) => (
-            <ProfessionalCard
-              key={professional.id}
-              professional={professional}
-              fullWidth
-            />
-          ))}
+          {professionals.length > 0
+            ? professionals.map((professional) => (
+                <ProfessionalCard
+                  key={professional.id}
+                  professional={professional}
+                  fullWidth
+                />
+              ))
+            : emptyState}
         </View>
       </View>
     </View>

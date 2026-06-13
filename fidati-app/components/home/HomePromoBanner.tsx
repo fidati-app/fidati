@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   NativeScrollEvent,
@@ -10,11 +11,25 @@ import {
 } from 'react-native';
 
 import { AppText } from '@/components/AppText';
-import { HOME_PROMO_BANNERS } from '@/constants/homeMarketplace';
+import { HomePromoBanner as HomePromoBannerData, HOME_PROMO_BANNERS } from '@/constants/homeMarketplace';
 import { Colors } from '@/constants/colors';
 import { Design } from '@/constants/design';
 
 const AUTO_SCROLL_MS = 4500;
+/** Angoli morbidi stile premium per le card promo Hero. */
+const BANNER_RADIUS = 26;
+
+function BannerVisual({ banner }: { banner: HomePromoBannerData }) {
+  return (
+    <View style={[styles.iconCircle, { backgroundColor: banner.iconBg }]}>
+      {banner.imageSource ? (
+        <Image source={banner.imageSource} style={styles.brandIcon} contentFit="contain" />
+      ) : (
+        <Ionicons name={banner.icon!} size={18} color={banner.iconColor!} />
+      )}
+    </View>
+  );
+}
 
 export function HomePromoBanner() {
   const { width: screenWidth } = useWindowDimensions();
@@ -60,12 +75,14 @@ export function HomePromoBanner() {
       >
         {HOME_PROMO_BANNERS.map((banner) => (
           <View key={banner.id} style={[styles.banner, { width: bannerWidth }]}>
-            <View style={[styles.iconCircle, { backgroundColor: banner.iconBg }]}>
-              <Ionicons name={banner.icon} size={20} color={banner.iconColor} />
-            </View>
+            <BannerVisual banner={banner} />
             <View style={styles.copy}>
-              <AppText style={styles.title}>{banner.title}</AppText>
-              <AppText style={styles.subtitle}>{banner.subtitle}</AppText>
+              <AppText style={styles.title} numberOfLines={1} ellipsizeMode="tail">
+                {banner.title}
+              </AppText>
+              <AppText style={styles.subtitle} numberOfLines={1} ellipsizeMode="tail">
+                {banner.subtitle}
+              </AppText>
             </View>
           </View>
         ))}
@@ -85,59 +102,67 @@ export function HomePromoBanner() {
 
 const styles = StyleSheet.create({
   wrap: {
-    marginBottom: 10,
+    marginTop: 0,
+    marginBottom: 4,
   },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 9,
     backgroundColor: 'rgba(255,255,255,0.09)',
-    borderRadius: Design.radius.card,
+    borderRadius: BANNER_RADIUS,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.14)',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    minHeight: 52,
   },
   iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    overflow: 'hidden',
+  },
+  brandIcon: {
+    width: 20,
+    height: 20,
   },
   copy: {
     flex: 1,
-    gap: 3,
+    gap: 1,
+    justifyContent: 'center',
   },
   title: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: Colors.white,
-    letterSpacing: -0.3,
-    lineHeight: 18,
+    letterSpacing: -0.25,
+    lineHeight: 17,
   },
   subtitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
-    color: 'rgba(255,255,255,0.65)',
-    lineHeight: 16,
+    color: 'rgba(255,255,255,0.62)',
+    lineHeight: 14,
   },
   dots: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 10,
+    gap: 5,
+    marginTop: 4,
   },
   dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
     backgroundColor: 'rgba(255,255,255,0.28)',
   },
   dotActive: {
-    width: 18,
+    width: 16,
     backgroundColor: Colors.accent,
   },
 });

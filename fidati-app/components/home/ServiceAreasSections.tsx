@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   FadeInDown,
@@ -17,6 +17,8 @@ import {
   HomeServiceTile,
 } from '@/constants/homeMarketplace';
 import { Colors } from '@/constants/colors';
+import { useServiceZone } from '@/context/ServiceZoneContext';
+import { categoryHasProsInZone } from '@/services/zoneService';
 import { CategorySlug } from '@/types';
 
 type AreaTab = 'casa' | 'azienda';
@@ -57,7 +59,16 @@ function ServiceRow({ service }: { service: HomeServiceTile }) {
 }
 
 function ServiceList({ tab }: { tab: AreaTab }) {
-  const services = SERVICES_BY_TAB[tab];
+  const { hasSelectedCity, categoryCounts } = useServiceZone();
+  const services = useMemo(() => {
+    const all = SERVICES_BY_TAB[tab];
+    if (!hasSelectedCity) return all;
+    return all.filter((service) =>
+      categoryHasProsInZone(service.slug as CategorySlug, categoryCounts),
+    );
+  }, [tab, hasSelectedCity, categoryCounts]);
+
+  if (services.length === 0) return null;
 
   return (
     <Animated.View

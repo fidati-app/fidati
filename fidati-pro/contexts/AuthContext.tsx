@@ -240,11 +240,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       data: { subscription },
 
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
 
       if (!active) return;
 
-      setSession(nextSession);
+      devLog('onAuthStateChange', {
+
+        event,
+
+        userId: nextSession?.user?.id ?? null,
+
+        sessionPresent: Boolean(nextSession),
+
+      });
+
+
+
+      if (event === 'SIGNED_OUT') {
+
+        setSession(null);
+
+      } else if (nextSession) {
+
+        setSession(nextSession);
+
+      } else if (event === 'INITIAL_SESSION') {
+
+        setSession(null);
+
+      }
+
+
 
       setIsLoading(false);
 
@@ -286,7 +312,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
 
       email: trimmedEmail,
 
@@ -301,6 +327,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: mapAuthError(error.message) };
 
     }
+
+
+
+    if (data.session) {
+
+      setSession(data.session);
+
+    }
+
+
+
+    devLog('signIn success auth user id:', data.session?.user?.id ?? data.user?.id ?? '(none)');
 
 
 
@@ -349,6 +387,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
     const needsEmailConfirmation = !data.session && Boolean(data.user);
+
+
+
+    if (data.session) {
+
+      setSession(data.session);
+
+    }
+
+
+
+    devLog('signUp auth user id:', data.user?.id ?? '(none)');
+
+    devLog('signUp needsEmailConfirmation:', needsEmailConfirmation);
+
+    devLog('signUp session present:', Boolean(data.session));
 
     return {
 

@@ -31,8 +31,15 @@ export type ReportTargetType = 'professional' | 'customer' | 'booking' | 'review
 export type ProfileStepId = 'photo' | 'bio' | 'services' | 'portfolio' | 'zones';
 
 export type CategorySlug =
-  | 'pulizie'
-  | 'idraulici'
   | 'elettricisti'
+  | 'idraulici'
+  | 'fabbri'
   | 'giardinieri'
-  | 'tuttofare';
+  | 'pulizie'
+  | 'imbianchini'
+  | 'serramentisti'
+  | 'tecnici-caldaie-condizionatori'
+  | 'traslochi-sgomberi'
+  | 'antennisti'
+  | 'montaggio-mobili'
+  | 'tende-da-sole';

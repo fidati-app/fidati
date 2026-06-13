@@ -1,10 +1,14 @@
 import {
+  getOfficialCategoryName,
+  isOfficialCategorySlug,
+  resolveCategorySlug,
+  sanitizeLegacyServiceLabel,
+} from '@/constants/categoryCatalog';
+import {
   HOME_OFFERS,
   HomeOffer,
-  NEW_PROFESSIONAL_IDS,
   POPULAR_SERVICES,
   PopularService,
-  URGENT_PROFESSIONALS,
 } from '@/constants/homeMarketplace';
 import {
   computeHomeDataSource,
@@ -14,15 +18,14 @@ import {
   LOG_PREFIX,
 } from '@/lib/supabaseDebug';
 import { supabase } from '@/lib/supabase';
-import { getProfessionalById } from '@/services/mockData';
 import { CategoryIcon, Professional } from '@/types';
 
 import {
-  fetchNewFeaturedProfessionals,
   fetchProfessionals,
-  fetchUrgentFromSupabase,
+  getNewFeaturedFromProfessionals,
   getTopProfessionals,
   getTopProfessionalsByCategoryFromList,
+  getUrgentItemsFromProfessionals,
 } from './professionalsService';
 import { fetchHomeReviews } from './reviewsService';
 import { withMockFallback } from './supabaseUtils';
@@ -49,12 +52,34 @@ interface OfferRow {
 
 function categorySlugFromPopular(row: PopularRow): string {
   const rel = row.service_categories;
-  return (Array.isArray(rel) ? rel[0]?.slug : rel?.slug) ?? 'tuttofare';
+  const slug = Array.isArray(rel) ? rel[0]?.slug : rel?.slug;
+  return resolveCategorySlug(slug);
+}
+
+function mapPopularService(row: PopularRow): PopularService | null {
+  const slug = categorySlugFromPopular(row);
+  if (!isOfficialCategorySlug(slug)) return null;
+
+  return {
+    id: row.legacy_id ?? row.id,
+    title: sanitizeLegacyServiceLabel(row.title) || getOfficialCategoryName(slug),
+    icon: row.icon as CategoryIcon,
+    slug,
+    rating: Number(row.rating),
+    completedJobs: row.completed_jobs,
+    avgPrice: Number(row.avg_price),
+    imageUrl: row.image_url ?? '',
+  };
 }
 
 export async function fetchPopularServices(): Promise<PopularService[]> {
   return withMockFallback(
-    { service: 'homeService', table: 'home_popular_services' },
+    {
+      service: 'homeService',
+      table: 'home_popular_services',
+      name: 'list',
+      source: 'fetchHomeMarketplaceData()',
+    },
     async () => {
       const { data, error } = await supabase
         .from('home_popular_services')
@@ -62,16 +87,10 @@ export async function fetchPopularServices(): Promise<PopularService[]> {
         .order('sort_order', { ascending: true });
 
       if (error) throw error;
-      return (data as PopularRow[]).map((row) => ({
-      id: row.legacy_id ?? row.id,
-      title: row.title,
-      icon: row.icon as CategoryIcon,
-      slug: categorySlugFromPopular(row),
-      rating: Number(row.rating),
-      completedJobs: row.completed_jobs,
-      avgPrice: Number(row.avg_price),
-      imageUrl: row.image_url ?? '',
-    }));
+      const mapped = (data as PopularRow[])
+        .map(mapPopularService)
+        .filter((item): item is PopularService => item !== null);
+      return mapped.length > 0 ? mapped : POPULAR_SERVICES;
     },
     POPULAR_SERVICES,
   );
@@ -79,7 +98,12 @@ export async function fetchPopularServices(): Promise<PopularService[]> {
 
 export async function fetchHomeOffers(): Promise<HomeOffer[]> {
   return withMockFallback(
-    { service: 'homeService', table: 'home_offers' },
+    {
+      service: 'homeService',
+      table: 'home_offers',
+      name: 'list',
+      source: 'fetchHomeMarketplaceData()',
+    },
     async () => {
       const { data, error } = await supabase
         .from('home_offers')
@@ -108,18 +132,15 @@ export interface HomeMarketplaceData {
   newProfessionals: Professional[];
 }
 
-function mockUrgentItems(): { professional: Professional; badge: string }[] {
-  return URGENT_PROFESSIONALS.map((item) => {
-    const professional = getProfessionalById(item.professionalId);
-    return professional ? { professional, badge: item.badge } : null;
-  }).filter(Boolean) as { professional: Professional; badge: string }[];
-}
-
-function mockNewProfessionals(): Professional[] {
-  return NEW_PROFESSIONAL_IDS.map((id) => getProfessionalById(id)).filter(
-    Boolean,
-  ) as Professional[];
-}
+const EMPTY_MARKETPLACE: HomeMarketplaceData = {
+  popularServices: POPULAR_SERVICES,
+  offers: HOME_OFFERS,
+  reviews: [],
+  professionals: [],
+  topProfessionals: [],
+  urgentItems: [],
+  newProfessionals: [],
+};
 
 export async function fetchHomeMarketplaceData(): Promise<HomeMarketplaceData> {
   const [popularServices, offers, reviews, professionals] = await Promise.all([
@@ -130,19 +151,8 @@ export async function fetchHomeMarketplaceData(): Promise<HomeMarketplaceData> {
   ]);
 
   const topProfessionals = getTopProfessionals(professionals, 4);
-
-  let urgentItems = mockUrgentItems();
-  let newProfessionals = mockNewProfessionals();
-
-  const urgentFromDb = await fetchUrgentFromSupabase(professionals);
-  if (urgentFromDb.length > 0) {
-    urgentItems = urgentFromDb;
-  }
-
-  const newFromDb = await fetchNewFeaturedProfessionals(professionals);
-  if (newFromDb.length > 0) {
-    newProfessionals = newFromDb;
-  }
+  const urgentItems = getUrgentItemsFromProfessionals(professionals, 6);
+  const newProfessionals = getNewFeaturedFromProfessionals(professionals);
 
   const result = {
     popularServices,
@@ -161,6 +171,7 @@ export async function fetchHomeMarketplaceData(): Promise<HomeMarketplaceData> {
     if (fallbacks.length > 0) {
       console.log(`${LOG_PREFIX} Tabelle in fallback mock:`, fallbacks);
     }
+    console.log(`${LOG_PREFIX} Professionisti Supabase:`, professionals.length);
   }
 
   return result;

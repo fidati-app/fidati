@@ -1,3 +1,10 @@
+import { CategorySlug } from '@/types';
+
+import { getCategoryCoverUrl } from './categoryCatalog';
+
+/** Icona brand — stessa risorsa del pulsante «Scopri la garanzia» in fondo Home. */
+export const FIDATI_BRAND_ICON = require('@/components/logo_icona.png');
+
 export const PROFESSIONAL_IMAGES = {
   '1': {
     avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&h=200&fit=crop&crop=face',
@@ -65,14 +72,17 @@ export const USER_IMAGE =
   'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face';
 
 export const CATEGORY_COVER_IMAGES = {
-  pulizie:
-    'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=900&h=520&fit=crop',
-  idraulici:
-    'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=900&h=520&fit=crop',
-  elettricisti:
-    'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=900&h=520&fit=crop',
-  giardinieri:
-    'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=900&h=520&fit=crop',
-  tuttofare:
-    'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=900&h=520&fit=crop',
-} as const;
+  elettricisti: getCategoryCoverUrl('elettricisti'),
+  idraulici: getCategoryCoverUrl('idraulici'),
+  fabbri: getCategoryCoverUrl('fabbri'),
+  giardinieri: getCategoryCoverUrl('giardinieri'),
+  pulizie: getCategoryCoverUrl('pulizie'),
+  imbianchini: getCategoryCoverUrl('imbianchini'),
+  serramentisti: getCategoryCoverUrl('serramentisti'),
+  caldaie: getCategoryCoverUrl('caldaie'),
+  condizionatori: getCategoryCoverUrl('condizionatori'),
+  'traslochi-sgomberi': getCategoryCoverUrl('traslochi-sgomberi'),
+  antennisti: getCategoryCoverUrl('antennisti'),
+  'montaggio-mobili': getCategoryCoverUrl('montaggio-mobili'),
+  'tende-da-sole': getCategoryCoverUrl('tende-da-sole'),
+} as const satisfies Record<CategorySlug, string>;

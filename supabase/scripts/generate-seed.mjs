@@ -5,17 +5,11 @@
 import { writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { OFFICIAL_CATEGORIES, CAT } from './category-catalog.mjs';
+import { buildCategoryUpsertSql } from './category-migration-sql.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = join(__dirname, '..', 'seed.sql');
-
-const CAT = {
-  pulizie: 'c1000001-0001-4000-8000-000000000001',
-  idraulici: 'c1000001-0001-4000-8000-000000000002',
-  elettricisti: 'c1000001-0001-4000-8000-000000000003',
-  giardinieri: 'c1000001-0001-4000-8000-000000000004',
-  tuttofare: 'c1000001-0001-4000-8000-000000000005',
-};
 
 const PRO_IMAGES = {
   '1': { avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&h=200&fit=crop&crop=face', hero: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&h=600&fit=crop' },
@@ -40,7 +34,14 @@ const GALLERY_EXTRA = {
   idraulici: ['https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=900&h=600&fit=crop', 'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=900&h=600&fit=crop'],
   elettricisti: ['https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=900&h=600&fit=crop', 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&h=600&fit=crop'],
   giardinieri: ['https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=900&h=600&fit=crop', 'https://images.unsplash.com/photo-1598902108854-10e335adac99?w=900&h=600&fit=crop'],
-  tuttofare: ['https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=900&h=600&fit=crop', 'https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=900&h=600&fit=crop'],
+  fabbri: ['https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&h=600&fit=crop', 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=900&h=600&fit=crop'],
+  imbianchini: ['https://images.unsplash.com/photo-1562259949-e8e7689d4713?w=900&h=600&fit=crop', 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=900&h=600&fit=crop'],
+  serramentisti: ['https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=900&h=600&fit=crop', 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&h=600&fit=crop'],
+  'tecnici-caldaie-condizionatori': ['https://images.unsplash.com/photo-1585771724944-230ac3de9884?w=900&h=600&fit=crop', 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=900&h=600&fit=crop'],
+  'traslochi-sgomberi': ['https://images.unsplash.com/photo-1600518468881-ce588ea7c948?w=900&h=600&fit=crop', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=900&h=600&fit=crop'],
+  antennisti: ['https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&h=600&fit=crop', 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=900&h=600&fit=crop'],
+  'montaggio-mobili': ['https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=900&h=600&fit=crop', 'https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=900&h=600&fit=crop'],
+  'tende-da-sole': ['https://images.unsplash.com/photo-1598928636138-d97944675141?w=900&h=600&fit=crop', 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=900&h=600&fit=crop'],
 };
 
 const ZONES_BY_CAT = {
@@ -48,7 +49,14 @@ const ZONES_BY_CAT = {
   idraulici: ['Lambrate', 'Porta Romana', 'Loreto', 'Bicocca', 'Centro'],
   elettricisti: ['Centro', 'Porta Nuova', 'Isola', 'San Siro', 'Navigli'],
   giardinieri: ['Porta Romana', 'Navigli', 'San Siro', 'Brera', 'Lambrate'],
-  tuttofare: ['Centro', 'Lambrate', 'Isola', 'Porta Nuova', 'Bicocca'],
+  fabbri: ['Centro', 'Lambrate', 'Isola', 'Porta Nuova', 'Bicocca'],
+  imbianchini: ['Centro', 'Brera', 'Navigli', 'Porta Romana', 'Isola'],
+  serramentisti: ['Centro', 'Porta Nuova', 'Lambrate', 'Bicocca', 'Navigli'],
+  'tecnici-caldaie-condizionatori': ['Centro', 'Lambrate', 'Porta Romana', 'Loreto', 'Bicocca'],
+  'traslochi-sgomberi': ['Centro', 'Lambrate', 'Isola', 'Porta Nuova', 'Bicocca'],
+  antennisti: ['Centro', 'Porta Nuova', 'Lambrate', 'Isola', 'Navigli'],
+  'montaggio-mobili': ['Centro', 'Lambrate', 'Isola', 'Porta Nuova', 'Bicocca'],
+  'tende-da-sole': ['Porta Romana', 'Navigli', 'Brera', 'Centro', 'Isola'],
 };
 
 const WEEKLY_BOOKINGS = {
@@ -56,7 +64,14 @@ const WEEKLY_BOOKINGS = {
   'idr-leak': 920, 'idr-tap': 640, 'idr-boiler': 380, 'idr-drain': 710, 'idr-install': 290,
   'ele-point': 760, 'ele-panel': 580, 'ele-led': 580, 'ele-smart': 210, 'ele-cert': 340, 'ele-urgent': 890,
   'gia-prune': 450, 'gia-maint': 620, 'gia-grass': 780, 'gia-terra': 390, 'gia-irr': 180,
-  'tut-furniture': 1120, 'tut-fix': 980, 'tut-small': 1500, 'tut-paint': 420, 'tut-door': 360,
+  'mob-furniture': 1120, 'mob-small': 800,
+  'fab-lock': 360, 'fab-iron': 180,
+  'imb-paint': 420, 'imb-ext': 200,
+  'ser-window': 290, 'ser-door': 360,
+  'tcl-boiler': 380, 'tcl-ac': 520,
+  'tra-move': 430, 'tra-clear': 310,
+  'ant-tv': 250, 'ant-sat': 180,
+  'ten-install': 200, 'ten-maint': 150,
 };
 
 const PROFESSIONAL_SERVICES = {
@@ -153,26 +168,84 @@ const PROFESSIONAL_SERVICES = {
       { id: 'gia-irr-p', tier: 'premium', title: 'Nuovo impianto', description: 'Fino a 200 mq', price: 220, duration: '6 ore' },
     ]},
   ],
-  tuttofare: [
-    { id: 'tut-furniture', title: 'Montaggio mobili', icon: 'cube-outline', description: 'IKEA, cucine e armadi', fromPrice: 35, packages: [
-      { id: 'tut-furniture-b', tier: 'base', title: 'Singolo mobile', description: 'Comò, libreria, scrivania', price: 35, duration: '1.5 ore' },
-      { id: 'tut-furniture-s', tier: 'standard', title: 'Camera completa', description: 'Fino a 4 mobili', price: 75, duration: '3 ore' },
+  'montaggio-mobili': [
+    { id: 'mob-furniture', title: 'Montaggio mobili', icon: 'cube-outline', description: 'IKEA, cucine e armadi', fromPrice: 35, packages: [
+      { id: 'mob-furniture-b', tier: 'base', title: 'Singolo mobile', description: 'Comò, libreria, scrivania', price: 35, duration: '1.5 ore' },
+      { id: 'mob-furniture-s', tier: 'standard', title: 'Camera completa', description: 'Fino a 4 mobili', price: 75, duration: '3 ore' },
     ]},
-    { id: 'tut-fix', title: 'Riparazioni casa', icon: 'hammer-outline', description: 'Tapparelle, serrature, piccoli guasti', fromPrice: 40, packages: [
-      { id: 'tut-fix-b', tier: 'base', title: 'Intervento singolo', description: 'Una riparazione', price: 40, duration: '1 ora' },
-      { id: 'tut-fix-s', tier: 'standard', title: 'Pacchetto 3 interventi', description: 'Nella stessa visita', price: 95, duration: '3 ore' },
+    { id: 'mob-small', title: 'Fissaggi e mensole', icon: 'construct-outline', description: 'Appendere quadri, mensole, TV', fromPrice: 30, packages: [
+      { id: 'mob-small-b', tier: 'base', title: '1 ora lavoro', description: 'Lista interventi brevi', price: 30, duration: '1 ora' },
+      { id: 'mob-small-s', tier: 'standard', title: '2 ore lavoro', description: 'Più attività insieme', price: 55, duration: '2 ore' },
     ]},
-    { id: 'tut-small', title: 'Piccoli lavori', icon: 'construct-outline', description: 'Appendere quadri, mensole, tende', fromPrice: 30, packages: [
-      { id: 'tut-small-b', tier: 'base', title: '1 ora lavoro', description: 'Lista interventi brevi', price: 30, duration: '1 ora' },
-      { id: 'tut-small-s', tier: 'standard', title: '2 ore lavoro', description: 'Più attività insieme', price: 55, duration: '2 ore' },
+  ],
+  fabbri: [
+    { id: 'fab-lock', title: 'Aperture e serrature', icon: 'key-outline', description: 'Porte bloccate e sostituzione serrature', fromPrice: 50, packages: [
+      { id: 'fab-lock-b', tier: 'base', title: 'Apertura porta', description: 'Intervento urgente', price: 50, duration: '1 ora' },
+      { id: 'fab-lock-s', tier: 'standard', title: 'Sostituzione serratura', description: 'Con collaudo', price: 90, duration: '2 ore' },
     ]},
-    { id: 'tut-paint', title: 'Tinteggiatura', icon: 'color-palette-outline', description: 'Pareti, soffitti e ritocchi', fromPrice: 70, packages: [
-      { id: 'tut-paint-b', tier: 'base', title: 'Singola parete', description: 'Fino a 12 mq', price: 70, duration: '3 ore' },
-      { id: 'tut-paint-p', tier: 'premium', title: 'Stanza intera', description: 'Fino a 15 mq', price: 150, duration: '6 ore' },
+    { id: 'fab-iron', title: 'Lavori in ferro', icon: 'hammer-outline', description: 'Ringhiere, cancelli e strutture', fromPrice: 80, packages: [
+      { id: 'fab-iron-b', tier: 'base', title: 'Riparazione', description: 'Singolo elemento', price: 80, duration: '2 ore' },
+      { id: 'fab-iron-p', tier: 'premium', title: 'Realizzazione', description: 'Su misura', price: 180, duration: '4 ore' },
     ]},
-    { id: 'tut-door', title: 'Serramenti', icon: 'lock-closed-outline', description: 'Porte, maniglie e cerniere', fromPrice: 45, packages: [
-      { id: 'tut-door-b', tier: 'base', title: 'Regolazione porta', description: 'Cerniere e chiudiporta', price: 45, duration: '1 ora' },
-      { id: 'tut-door-s', tier: 'standard', title: 'Sostituzione serratura', description: 'Con collaudo', price: 80, duration: '2 ore' },
+  ],
+  imbianchini: [
+    { id: 'imb-paint', title: 'Tinteggiatura interni', icon: 'color-palette-outline', description: 'Pareti, soffitti e ritocchi', fromPrice: 70, packages: [
+      { id: 'imb-paint-b', tier: 'base', title: 'Singola parete', description: 'Fino a 12 mq', price: 70, duration: '3 ore' },
+      { id: 'imb-paint-p', tier: 'premium', title: 'Stanza intera', description: 'Fino a 15 mq', price: 150, duration: '6 ore' },
+    ]},
+    { id: 'imb-ext', title: 'Pittura esterni', icon: 'home-outline', description: 'Facciate e balconi', fromPrice: 120, packages: [
+      { id: 'imb-ext-b', tier: 'base', title: 'Balcone', description: 'Fino a 20 mq', price: 120, duration: '4 ore' },
+      { id: 'imb-ext-s', tier: 'standard', title: 'Facciata parziale', description: 'Fino a 40 mq', price: 220, duration: '8 ore' },
+    ]},
+  ],
+  serramentisti: [
+    { id: 'ser-window', title: 'Infissi e finestre', icon: 'albums-outline', description: 'Sostituzione e regolazione', fromPrice: 65, packages: [
+      { id: 'ser-window-b', tier: 'base', title: 'Regolazione', description: 'Singolo infisso', price: 65, duration: '1.5 ore' },
+      { id: 'ser-window-s', tier: 'standard', title: 'Sostituzione', description: 'Finestra standard', price: 180, duration: '4 ore' },
+    ]},
+    { id: 'ser-door', title: 'Porte e serramenti', icon: 'lock-closed-outline', description: 'Porte, maniglie e cerniere', fromPrice: 45, packages: [
+      { id: 'ser-door-b', tier: 'base', title: 'Regolazione porta', description: 'Cerniere e chiudiporta', price: 45, duration: '1 ora' },
+      { id: 'ser-door-s', tier: 'standard', title: 'Sostituzione serratura', description: 'Con collaudo', price: 80, duration: '2 ore' },
+    ]},
+  ],
+  'tecnici-caldaie-condizionatori': [
+    { id: 'tcl-boiler', title: 'Caldaia e riscaldamento', icon: 'flame-outline', description: 'Manutenzione e assistenza', fromPrice: 70, packages: [
+      { id: 'tcl-boiler-b', tier: 'base', title: 'Controllo annuale', description: 'Pulizia e verifica', price: 70, duration: '1.5 ore' },
+      { id: 'tcl-boiler-p', tier: 'premium', title: 'Manutenzione full', description: 'Ricambi base inclusi', price: 130, duration: '3 ore' },
+    ]},
+    { id: 'tcl-ac', title: 'Condizionatori', icon: 'snow-outline', description: 'Installazione e manutenzione', fromPrice: 80, packages: [
+      { id: 'tcl-ac-b', tier: 'base', title: 'Pulizia split', description: 'Singola unità', price: 80, duration: '2 ore' },
+      { id: 'tcl-ac-s', tier: 'standard', title: 'Installazione', description: 'Mono split', price: 250, duration: '4 ore' },
+    ]},
+  ],
+  'traslochi-sgomberi': [
+    { id: 'tra-move', title: 'Traslochi', icon: 'car-outline', description: 'Trasporto mobili e scatoloni', fromPrice: 120, packages: [
+      { id: 'tra-move-b', tier: 'base', title: 'Monolocale', description: 'Fino a 30 mq', price: 120, duration: '4 ore' },
+      { id: 'tra-move-s', tier: 'standard', title: 'Bilocale', description: 'Fino a 60 mq', price: 220, duration: '6 ore' },
+    ]},
+    { id: 'tra-clear', title: 'Sgomberi', icon: 'trash-outline', description: 'Svuotamento cantine e locali', fromPrice: 90, packages: [
+      { id: 'tra-clear-b', tier: 'base', title: 'Piccolo locale', description: 'Fino a 15 mq', price: 90, duration: '3 ore' },
+      { id: 'tra-clear-s', tier: 'standard', title: 'Cantina/garage', description: 'Fino a 30 mq', price: 160, duration: '5 ore' },
+    ]},
+  ],
+  antennisti: [
+    { id: 'ant-tv', title: 'Antenne TV', icon: 'radio-outline', description: 'Installazione e puntamento', fromPrice: 60, packages: [
+      { id: 'ant-tv-b', tier: 'base', title: 'Puntamento', description: 'Segnale ottimizzato', price: 60, duration: '1.5 ore' },
+      { id: 'ant-tv-s', tier: 'standard', title: 'Nuova antenna', description: 'Con installazione', price: 120, duration: '3 ore' },
+    ]},
+    { id: 'ant-sat', title: 'Parabole satellitari', icon: 'planet-outline', description: 'Installazione e configurazione', fromPrice: 90, packages: [
+      { id: 'ant-sat-b', tier: 'base', title: 'Configurazione', description: 'Decoder e LNB', price: 90, duration: '2 ore' },
+      { id: 'ant-sat-p', tier: 'premium', title: 'Installazione completa', description: 'Parabola + cavi', price: 180, duration: '4 ore' },
+    ]},
+  ],
+  'tende-da-sole': [
+    { id: 'ten-install', title: 'Installazione tende', icon: 'sunny-outline', description: 'Tende da sole e pergole', fromPrice: 85, packages: [
+      { id: 'ten-install-b', tier: 'base', title: 'Balcone', description: 'Fino a 3 mq', price: 85, duration: '2 ore' },
+      { id: 'ten-install-s', tier: 'standard', title: 'Terrazzo', description: 'Fino a 8 mq', price: 150, duration: '4 ore' },
+    ]},
+    { id: 'ten-maint', title: 'Manutenzione tende', icon: 'build-outline', description: 'Riparazione e sostituzione teli', fromPrice: 55, packages: [
+      { id: 'ten-maint-b', tier: 'base', title: 'Regolazione', description: 'Meccanismo e guide', price: 55, duration: '1.5 ore' },
+      { id: 'ten-maint-s', tier: 'standard', title: 'Sostituzione telo', description: 'Con materiali base', price: 110, duration: '3 ore' },
     ]},
   ],
 };
@@ -182,7 +255,7 @@ const MOCK_PROFESSIONALS = [
   { id: '2', name: 'Luca Bianchi', categorySlug: 'idraulici', category: 'Idraulico', avatarColor: '#0EA5E9', rating: 4.8, reviewCount: 95, jobsCompleted: 180, pricePerHour: 30, distanceKm: 1.2, availableToday: true, verified: true, badges: { document: true, phone: true, professional: true }, bio: 'Idraulico con 15 anni di esperienza. Interventi rapidi per perdite, installazioni e manutenzione impianti.', whyChoose: ['Interventi rapidi e puntuali', 'Prezzi trasparenti senza sorprese', 'Materiali di qualità certificati', 'Assistenza post-intervento inclusa'], packages: [{ id: 'p1', tier: 'base', title: 'Intervento base', description: 'Diagnosi e riparazione perdite semplici', price: 40, duration: '1-2 ore' }, { id: 'p2', tier: 'standard', title: 'Intervento standard', description: 'Installazione rubinetteria e collaudo', price: 90, duration: '2-3 ore' }, { id: 'p3', tier: 'premium', title: 'Intervento premium', description: 'Manutenzione completa impianto e caldaia', price: 150, duration: '3-4 ore' }] },
   { id: '3', name: 'Anna Ferrari', categorySlug: 'elettricisti', category: 'Elettricista', avatarColor: '#F59E0B', rating: 5.0, reviewCount: 64, jobsCompleted: 180, pricePerHour: 45, distanceKm: 2.1, availableToday: true, verified: true, badges: { document: true, phone: true, professional: true }, bio: 'Elettricista certificata. Impianti civili, illuminazione LED e domotica. Lavoro conforme alle normative.', whyChoose: ['Certificazione DM 37/08', 'Domotica e smart home', 'Garanzia 24 mesi sui lavori', 'Valutazione 5.0 stelle'], packages: [{ id: 'p1', tier: 'base', title: 'Base', description: 'Installazione punto luce singolo', price: 55, duration: '1 ora' }, { id: 'p2', tier: 'standard', title: 'Standard', description: 'Verifica e aggiornamento quadro elettrico', price: 180, duration: '4 ore' }, { id: 'p3', tier: 'premium', title: 'Premium', description: 'Configurazione domotica completa', price: 250, duration: '6 ore' }] },
   { id: '4', name: 'Paolo Russo', categorySlug: 'giardinieri', category: 'Giardiniere', avatarColor: '#10B981', rating: 4.7, reviewCount: 52, jobsCompleted: 145, pricePerHour: 30, distanceKm: 3.4, availableToday: false, verified: true, badges: { document: true, phone: true, professional: false }, bio: 'Giardiniere appassionato. Potature, manutenzione prati e progettazione spazi verdi.', whyChoose: ['Progettazione paesaggistica', 'Potatura certificata alberi', 'Manutenzione stagionale', 'Attrezzatura professionale'], packages: [{ id: 'p1', tier: 'base', title: 'Base', description: 'Manutenzione giardino fino a 100mq', price: 70, duration: '3 ore' }, { id: 'p2', tier: 'standard', title: 'Standard', description: 'Potatura professionale alberi', price: 100, duration: '4 ore' }, { id: 'p3', tier: 'premium', title: 'Premium', description: 'Consulenza e impianto verde completo', price: 200, duration: '8 ore' }] },
-  { id: '5', name: 'Luca Conti', categorySlug: 'tuttofare', category: 'Tuttofare', avatarColor: '#6366F1', rating: 4.6, reviewCount: 98, jobsCompleted: 290, pricePerHour: 35, distanceKm: 1.8, availableToday: true, verified: true, badges: { document: true, phone: true, professional: true }, bio: 'Tuttofare versatile: montaggi mobili, piccole riparazioni, pittura e lavori domestici.', whyChoose: ['Disponibilità flessibile', 'Montaggio mobili IKEA e simili', 'Attrezzi professionali inclusi', '290 lavori completati'], packages: [{ id: 'p1', tier: 'base', title: 'Base', description: 'Montaggio mobili singolo', price: 50, duration: '2 ore' }, { id: 'p2', tier: 'standard', title: 'Standard', description: 'Riparazioni domestiche multiple', price: 65, duration: '2 ore' }, { id: 'p3', tier: 'premium', title: 'Premium', description: 'Pittura stanza fino a 15mq', price: 150, duration: '6 ore' }] },
+  { id: '5', name: 'Luca Conti', categorySlug: 'montaggio-mobili', category: 'Montaggio mobili', avatarColor: '#6366F1', rating: 4.6, reviewCount: 98, jobsCompleted: 290, pricePerHour: 35, distanceKm: 1.8, availableToday: true, verified: true, badges: { document: true, phone: true, professional: true }, bio: 'Specialista in montaggio mobili IKEA e cucine. Attrezzi professionali inclusi.', whyChoose: ['Disponibilità flessibile', 'Montaggio mobili IKEA e simili', 'Attrezzi professionali inclusi', '290 lavori completati'], packages: [{ id: 'p1', tier: 'base', title: 'Base', description: 'Montaggio mobili singolo', price: 50, duration: '2 ore' }, { id: 'p2', tier: 'standard', title: 'Standard', description: 'Camera completa', price: 75, duration: '3 ore' }, { id: 'p3', tier: 'premium', title: 'Premium', description: 'Cucina completa', price: 150, duration: '6 ore' }] },
   { id: '6', name: 'Sofia Marino', categorySlug: 'pulizie', category: 'Pulizie', avatarColor: '#EC4899', rating: 4.8, reviewCount: 73, jobsCompleted: 195, pricePerHour: 22, distanceKm: 0.5, availableToday: true, verified: true, badges: { document: true, phone: true, professional: true }, bio: 'Pulizie professionali per uffici e abitazioni. Puntualità e attenzione ai dettagli.', whyChoose: ['Specialista uffici e abitazioni', 'Prodotti ipoallergenici', 'Team di 2 persone su richiesta', 'Abbonamenti settimanali'], packages: [{ id: 'p1', tier: 'base', title: 'Base', description: 'Pulizia ufficio fino a 80mq', price: 60, duration: '3 ore' }, { id: 'p2', tier: 'standard', title: 'Standard', description: 'Pulizia settimanale 4 sessioni', price: 160, duration: '8 ore' }, { id: 'p3', tier: 'premium', title: 'Premium', description: 'Sanificazione antibatterica completa', price: 95, duration: '3 ore' }] },
   { id: '7', name: 'Giulia Costa', categorySlug: 'pulizie', category: 'Pulizie', avatarColor: '#14B8A6', rating: 4.7, reviewCount: 89, jobsCompleted: 210, pricePerHour: 23, distanceKm: 2.3, availableToday: true, verified: true, badges: { document: true, phone: true, professional: true }, bio: 'Esperta in pulizie profonde e sanificazione.', whyChoose: ['Prodotti ecologici', 'Flessibilità oraria'], packages: [{ id: 'p1', tier: 'base', title: 'Base', description: 'Pulizia standard', price: 45, duration: '2 ore' }, { id: 'p2', tier: 'standard', title: 'Standard', description: 'Pulizia profonda', price: 75, duration: '3 ore' }, { id: 'p3', tier: 'premium', title: 'Premium', description: 'Sanificazione completa', price: 110, duration: '4 ore' }] },
   { id: '8', name: 'Marco De Luca', categorySlug: 'idraulici', category: 'Idraulico', avatarColor: '#0284C7', rating: 4.9, reviewCount: 112, jobsCompleted: 220, pricePerHour: 32, distanceKm: 0.9, availableToday: true, verified: true, badges: { document: true, phone: true, professional: true }, bio: 'Specialista in perdite e installazioni bagno.', whyChoose: ['Interventi rapidi', 'Garanzia lavori'], packages: [{ id: 'p1', tier: 'base', title: 'Base', description: 'Riparazione perdite', price: 45, duration: '1-2 ore' }, { id: 'p2', tier: 'standard', title: 'Standard', description: 'Installazione sanitari', price: 95, duration: '3 ore' }, { id: 'p3', tier: 'premium', title: 'Premium', description: 'Rifacimento bagno', price: 180, duration: '6 ore' }] },
@@ -191,8 +264,8 @@ const MOCK_PROFESSIONALS = [
   { id: '11', name: 'Elena Vitale', categorySlug: 'elettricisti', category: 'Elettricista', avatarColor: '#F59E0B', rating: 4.7, reviewCount: 54, jobsCompleted: 130, pricePerHour: 42, distanceKm: 3.1, availableToday: true, verified: true, badges: { document: true, phone: true, professional: true }, bio: 'Smart home e automazione domestica.', whyChoose: ['Esperta domotica', 'Puntualità'], packages: [{ id: 'p1', tier: 'base', title: 'Base', description: 'Configurazione smart', price: 60, duration: '2 ore' }, { id: 'p2', tier: 'standard', title: 'Standard', description: 'Illuminazione LED', price: 140, duration: '3 ore' }, { id: 'p3', tier: 'premium', title: 'Premium', description: 'Sistema domotico', price: 320, duration: '8 ore' }] },
   { id: '12', name: 'Francesco Verde', categorySlug: 'giardinieri', category: 'Giardiniere', avatarColor: '#059669', rating: 4.8, reviewCount: 76, jobsCompleted: 190, pricePerHour: 28, distanceKm: 2.0, availableToday: true, verified: true, badges: { document: true, phone: true, professional: true }, bio: 'Potature e manutenzione giardini residenziali.', whyChoose: ['Attrezzatura propria', 'Sopralluogo gratuito'], packages: [{ id: 'p1', tier: 'base', title: 'Base', description: 'Taglio erba', price: 55, duration: '2 ore' }, { id: 'p2', tier: 'standard', title: 'Standard', description: 'Potatura siepi', price: 85, duration: '3 ore' }, { id: 'p3', tier: 'premium', title: 'Premium', description: 'Rifacimento giardino', price: 220, duration: '8 ore' }] },
   { id: '13', name: 'Chiara Bosco', categorySlug: 'giardinieri', category: 'Giardiniere', avatarColor: '#22C55E', rating: 4.9, reviewCount: 61, jobsCompleted: 165, pricePerHour: 32, distanceKm: 4.2, availableToday: false, verified: true, badges: { document: true, phone: true, professional: true }, bio: 'Progettazione e cura del verde ornamentale.', whyChoose: ['Design paesaggistico', 'Piante certificate'], packages: [{ id: 'p1', tier: 'base', title: 'Base', description: 'Manutenzione mensile', price: 65, duration: '3 ore' }, { id: 'p2', tier: 'standard', title: 'Standard', description: 'Potatura alberi', price: 110, duration: '4 ore' }, { id: 'p3', tier: 'premium', title: 'Premium', description: 'Nuovo impianto verde', price: 250, duration: '10 ore' }] },
-  { id: '14', name: 'Davide Moretti', categorySlug: 'tuttofare', category: 'Tuttofare', avatarColor: '#64748B', rating: 4.7, reviewCount: 102, jobsCompleted: 260, pricePerHour: 32, distanceKm: 1.1, availableToday: true, verified: true, badges: { document: true, phone: true, professional: true }, bio: 'Montaggi, riparazioni e piccoli lavori domestici.', whyChoose: ['Multicompetente', 'Disponibile weekend'], packages: [{ id: 'p1', tier: 'base', title: 'Base', description: 'Montaggio mobili', price: 45, duration: '2 ore' }, { id: 'p2', tier: 'standard', title: 'Standard', description: 'Riparazioni varie', price: 60, duration: '2 ore' }, { id: 'p3', tier: 'premium', title: 'Premium', description: 'Pittura interna', price: 140, duration: '6 ore' }] },
-  { id: '15', name: 'Simone Riva', categorySlug: 'tuttofare', category: 'Tuttofare', avatarColor: '#475569', rating: 4.5, reviewCount: 78, jobsCompleted: 175, pricePerHour: 30, distanceKm: 2.6, availableToday: true, verified: false, badges: { document: true, phone: true, professional: false }, bio: 'Tuttofare per casa e ufficio, montaggi e fissaggi.', whyChoose: ['Prezzi chiari', 'Lavoro pulito'], packages: [{ id: 'p1', tier: 'base', title: 'Base', description: 'Fissaggi a muro', price: 35, duration: '1 ora' }, { id: 'p2', tier: 'standard', title: 'Standard', description: 'Montaggio armadi', price: 70, duration: '3 ore' }, { id: 'p3', tier: 'premium', title: 'Premium', description: 'Lavori multipli', price: 120, duration: '5 ore' }] },
+  { id: '14', name: 'Davide Moretti', categorySlug: 'montaggio-mobili', category: 'Montaggio mobili', avatarColor: '#64748B', rating: 4.7, reviewCount: 102, jobsCompleted: 260, pricePerHour: 32, distanceKm: 1.1, availableToday: true, verified: true, badges: { document: true, phone: true, professional: true }, bio: 'Montaggi mobili e fissaggi per casa e ufficio.', whyChoose: ['Multicompetente', 'Disponibile weekend'], packages: [{ id: 'p1', tier: 'base', title: 'Base', description: 'Montaggio mobili', price: 45, duration: '2 ore' }, { id: 'p2', tier: 'standard', title: 'Standard', description: 'Camera completa', price: 75, duration: '3 ore' }, { id: 'p3', tier: 'premium', title: 'Premium', description: 'Cucina IKEA', price: 140, duration: '6 ore' }] },
+  { id: '15', name: 'Simone Riva', categorySlug: 'imbianchini', category: 'Imbianchini', avatarColor: '#475569', rating: 4.5, reviewCount: 78, jobsCompleted: 175, pricePerHour: 30, distanceKm: 2.6, availableToday: true, verified: false, badges: { document: true, phone: true, professional: false }, bio: 'Imbianchino per interni ed esterni, tinteggiatura e ritocchi.', whyChoose: ['Prezzi chiari', 'Lavoro pulito'], packages: [{ id: 'p1', tier: 'base', title: 'Base', description: 'Singola parete', price: 70, duration: '3 ore' }, { id: 'p2', tier: 'standard', title: 'Standard', description: 'Stanza intera', price: 150, duration: '6 ore' }, { id: 'p3', tier: 'premium', title: 'Premium', description: 'Appartamento', price: 280, duration: '10 ore' }] },
 ];
 
 const URGENT = { '1': 'Oggi', '2': 'Entro 1 ora', '3': 'Oggi', '5': 'Entro 2 ore' };
@@ -210,7 +283,7 @@ const HOME_REVIEWS = [
   { id: 'r1', clientName: 'Giulia M.', rating: 5, text: 'Precisa, puntuale e professionale.', service: 'Pulizie domestiche', proId: '1' },
   { id: 'r2', clientName: 'Marco T.', rating: 5, text: "Intervento rapido, problema risolto in un'ora.", service: 'Idraulico', proId: '2' },
   { id: 'r3', clientName: 'Elena R.', rating: 5, text: 'Giardino impeccabile, consigli utili sulla manutenzione.', service: 'Giardinaggio', proId: '12' },
-  { id: 'r4', clientName: 'Andrea P.', rating: 5, text: 'Montaggio perfetto e area lasciata pulita.', service: 'Tuttofare', proId: '5' },
+  { id: 'r4', clientName: 'Andrea P.', rating: 5, text: 'Montaggio perfetto e area lasciata pulita.', service: 'Montaggio mobili', proId: '5' },
 ];
 
 /** Namespace UUID (solo cifre esadecimali 0-9, a-f — PostgreSQL non accetta g-z) */
@@ -325,15 +398,8 @@ lines.push(`-- =================================================================
 -- =============================================================================
 `);
 
-// Categories
-lines.push(`INSERT INTO service_categories (id, legacy_id, slug, name, icon, description, professional_count, home_count, sort_order) VALUES
-  ('${CAT.pulizie}', '1', 'pulizie', 'Pulizie', 'sparkles-outline', 'Professionisti per pulizie domestiche, uffici e post-ristrutturazione.', 128, 1240, 1),
-  ('${CAT.idraulici}', '2', 'idraulici', 'Idraulici', 'water-outline', 'Riparazioni, installazioni e manutenzione idraulica.', 94, 860, 2),
-  ('${CAT.elettricisti}', '3', 'elettricisti', 'Elettricisti', 'flash-outline', 'Impianti elettrici, illuminazione e domotica certificata.', 76, 1120, 3),
-  ('${CAT.giardinieri}', '4', 'giardinieri', 'Giardinieri', 'leaf-outline', 'Cura del verde, potature e manutenzione giardini.', 52, 780, 4),
-  ('${CAT.tuttofare}', '5', 'tuttofare', 'Tuttofare', 'construct-outline', 'Piccoli lavori domestici, montaggi e riparazioni.', 110, 1500, 5)
-ON CONFLICT (id) DO NOTHING;
-`);
+lines.push(buildCategoryUpsertSql());
+lines.push('\n');
 
 // Services catalog
 const svcRows = [];
@@ -509,7 +575,7 @@ lines.push(`INSERT INTO home_popular_services (id, legacy_id, category_id, title
   ('${uuid(NS.homePopular, 2)}', 'ps2', '${CAT.idraulici}', 'Idraulico', 'water-outline', 4.8, 1960, 45, 'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=400&h=300&fit=crop', 2),
   ('${uuid(NS.homePopular, 3)}', 'ps3', '${CAT.elettricisti}', 'Elettricista', 'flash-outline', 4.9, 1720, 55, 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=400&h=300&fit=crop', 3),
   ('${uuid(NS.homePopular, 4)}', 'ps4', '${CAT.giardinieri}', 'Giardiniere', 'leaf-outline', 4.8, 980, 29, 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&h=300&fit=crop', 4),
-  ('${uuid(NS.homePopular, 5)}', 'ps5', '${CAT.tuttofare}', 'Tuttofare', 'construct-outline', 4.7, 1540, 35, 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400&h=300&fit=crop', 5)
+  ('${uuid(NS.homePopular, 5)}', 'ps5', '${CAT['montaggio-mobili']}', 'Montaggio mobili', 'cube-outline', 4.7, 1540, 35, 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400&h=300&fit=crop&fm=webp', 5)
 ON CONFLICT (id) DO NOTHING;
 `);
 
@@ -529,11 +595,11 @@ const casaTiles = [
   ['c3', 'Scarichi otturati', 'funnel-outline', 'idraulici'],
   ['c4', 'Impianti luce', 'bulb-outline', 'elettricisti'],
   ['c5', 'Cura giardino', 'leaf-outline', 'giardinieri'],
-  ['c6', 'Montaggio mobili', 'hammer-outline', 'tuttofare'],
-  ['c7', 'Imbiancatura', 'color-palette-outline', 'tuttofare'],
-  ['c8', 'Serrature', 'key-outline', 'tuttofare'],
-  ['c9', 'Climatizzatori', 'snow-outline', 'elettricisti'],
-  ['c10', 'Traslochi', 'car-outline', 'tuttofare'],
+  ['c6', 'Montaggio mobili', 'hammer-outline', 'montaggio-mobili'],
+  ['c7', 'Imbiancatura', 'color-palette-outline', 'imbianchini'],
+  ['c8', 'Serrature', 'key-outline', 'fabbri'],
+  ['c9', 'Climatizzatori', 'snow-outline', 'tecnici-caldaie-condizionatori'],
+  ['c10', 'Traslochi', 'car-outline', 'traslochi-sgomberi'],
 ];
 const aziendaTiles = [
   ['a1', 'Pulizie uffici', 'business-outline', 'pulizie'],
@@ -542,10 +608,10 @@ const aziendaTiles = [
   ['a4', 'Antincendio', 'flame-outline', 'elettricisti'],
   ['a5', 'Impianti elettrici', 'flash-outline', 'elettricisti'],
   ['a6', 'Cablaggio rete', 'git-network-outline', 'elettricisti'],
-  ['a7', 'Condizionatori', 'snow-outline', 'elettricisti'],
-  ['a8', 'Facchinaggio', 'cube-outline', 'tuttofare'],
-  ['a9', 'Facility management', 'settings-outline', 'tuttofare'],
-  ['a10', 'Manutenzione impianti', 'build-outline', 'tuttofare'],
+  ['a7', 'Condizionatori', 'snow-outline', 'tecnici-caldaie-condizionatori'],
+  ['a8', 'Facchinaggio', 'cube-outline', 'traslochi-sgomberi'],
+  ['a9', 'Facility management', 'settings-outline', 'pulizie'],
+  ['a10', 'Manutenzione impianti', 'build-outline', 'tecnici-caldaie-condizionatori'],
 ];
 const tileRows = [];
 let tileIdx = 1;
@@ -616,7 +682,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO bookings (id, legacy_id, customer_id, professional_id, booking_request_id, service_title, category_label, scheduled_date, scheduled_time, end_time, status, appointment_status, price, address, zone, note) VALUES
   ('${book(1)}', 'b1', '${customerId(1)}', '${proUuid('1')}', NULL, 'Pulizia casa', 'Pulizie', '2024-06-12', '10:00', NULL, 'confirmed', NULL, 85, 'Via Roma 12, Milano', NULL, 'Piano secondo, citofono Bianchi.'),
   ('${book(2)}', 'b2', '${customerId(1)}', '${proUuid('2')}', NULL, 'Riparazione perdita', 'Idraulico', '2024-06-08', '14:30', NULL, 'incoming', NULL, 60, 'Corso Garibaldi 45, Milano', NULL, NULL),
-  ('${book(3)}', 'b3', '${customerId(1)}', '${proUuid('5')}', NULL, 'Montaggio mobili', 'Tuttofare', '2024-05-28', '09:00', NULL, 'completed', NULL, 50, 'Viale Monza 88, Milano', NULL, NULL),
+  ('${book(3)}', 'b3', '${customerId(1)}', '${proUuid('5')}', NULL, 'Montaggio mobili', 'Montaggio mobili', '2024-05-28', '09:00', NULL, 'completed', NULL, 50, 'Viale Monza 88, Milano', NULL, NULL),
   ('${book(4)}', 'b4', '${customerId(1)}', '${proUuid('3')}', NULL, 'Punto luce', 'Elettricista', '2024-05-15', '11:00', NULL, 'completed', NULL, 55, 'Piazza Duomo 3, Milano', NULL, NULL),
   ('${book(5)}', 'apt-1', '${customerId(3)}', '${proUuid('1')}', '${req(4)}', 'Pulizia ufficio', 'Pulizie', '2026-06-09', '08:00', '11:00', 'confirmed', 'in_progress', 120, 'Viale Monza 88', 'Lambrate', NULL),
   ('${book(6)}', 'apt-2', '${customerId(5)}', '${proUuid('1')}', NULL, 'Pulizia profonda 60 mq', 'Pulizie', '2026-06-09', '14:00', '17:00', 'confirmed', 'upcoming', 95, 'Piazza Duomo 3', 'Centro', NULL),
@@ -649,7 +715,7 @@ ON CONFLICT (id) DO NOTHING;
 
 const stats = {
   professionals: MOCK_PROFESSIONALS.length,
-  categories: 5,
+  categories: 12,
   services: Object.values(PROFESSIONAL_SERVICES).flat().length,
   reviews: revRows.length,
   addedPros: 10,

@@ -1,3 +1,7 @@
+import {
+  resolveCategorySlug,
+  sanitizeLegacyCategoryLabel,
+} from '@/constants/categoryCatalog';
 import { ProfessionalServiceItem } from '@/constants/professionalServices';
 import { isSupabaseEnabled, supabase } from '@/lib/supabase';
 import {
@@ -7,23 +11,20 @@ import {
   logQuerySuccess,
 } from '@/lib/supabaseDebug';
 import {
-  getProfessionalById,
-  getProfessionalsByCategory,
-  MOCK_PROFESSIONALS,
-} from '@/services/mockData';
-import {
   CategoryIcon,
   CategorySlug,
   PackageTier,
   Professional,
+  ServiceCity,
   ServicePackage,
 } from '@/types';
 
-import { withMockFallback } from './supabaseUtils';
+import { fetchFromSupabaseOnly } from './supabaseUtils';
 
 interface ProfessionalRow {
   id: string;
   legacy_id: string | null;
+  category_slug: string | null;
   category_label: string;
   name: string;
   image_url: string | null;
@@ -43,12 +44,16 @@ interface ProfessionalRow {
   badge_professional: boolean;
   urgent_badge: string | null;
   is_new_featured: boolean;
+  created_at: string;
+  base_city: string | null;
+  service_areas: string[] | null;
   service_categories: { slug: string } | { slug: string }[] | null;
 }
 
 interface PackageRow {
   id: string;
   legacy_id: string | null;
+  professional_id?: string;
   professional_service_id: string | null;
   tier: PackageTier;
   title: string;
@@ -80,10 +85,53 @@ interface ZoneRow {
   sort_order: number;
 }
 
+function parseServiceCity(value: string | null | undefined): ServiceCity | null {
+  const normalized = value?.trim();
+  if (!normalized) return null;
+  const allowed: ServiceCity[] = [
+    'Barletta',
+    'Andria',
+    'Trani',
+    'Bisceglie',
+    'Margherita di Savoia',
+  ];
+  const match = allowed.find((city) => city.toLowerCase() === normalized.toLowerCase());
+  return match ?? null;
+}
+
+function serviceAreasFromRow(row: ProfessionalRow, zoneNames?: string[]): ServiceCity[] {
+  const fromArray = (row.service_areas ?? [])
+    .map(parseServiceCity)
+    .filter((city): city is ServiceCity => city !== null);
+
+  if (fromArray.length > 0) {
+    return fromArray;
+  }
+
+  const base = parseServiceCity(row.base_city);
+  if (base) {
+    return [base];
+  }
+
+  if (zoneNames?.length) {
+    const fromZones = zoneNames
+      .map(parseServiceCity)
+      .filter((city): city is ServiceCity => city !== null);
+    if (fromZones.length > 0) {
+      return fromZones;
+    }
+  }
+
+  return [];
+}
+
 function categorySlugFromRow(row: ProfessionalRow): CategorySlug {
+  if (row.category_slug) {
+    return resolveCategorySlug(row.category_slug);
+  }
   const rel = row.service_categories;
   const slug = Array.isArray(rel) ? rel[0]?.slug : rel?.slug;
-  return (slug ?? 'tuttofare') as CategorySlug;
+  return resolveCategorySlug(slug);
 }
 
 function mapPackage(row: PackageRow): ServicePackage {
@@ -97,13 +145,20 @@ function mapPackage(row: PackageRow): ServicePackage {
   };
 }
 
-function mapProfessional(row: ProfessionalRow, packages: ServicePackage[]): Professional {
+function mapProfessional(
+  row: ProfessionalRow,
+  packages: ServicePackage[],
+  zoneNames?: string[],
+): Professional {
   const categorySlug = categorySlugFromRow(row);
+  const serviceAreas = serviceAreasFromRow(row, zoneNames);
+  const city = parseServiceCity(row.base_city) ?? serviceAreas[0] ?? 'Barletta';
+
   return {
     id: row.legacy_id ?? row.id,
     name: row.name,
     categorySlug,
-    category: row.category_label,
+    category: sanitizeLegacyCategoryLabel(row.category_label, categorySlug),
     imageUrl: row.image_url ?? '',
     heroImageUrl: row.hero_image_url ?? '',
     avatarColor: row.avatar_color,
@@ -122,6 +177,11 @@ function mapProfessional(row: ProfessionalRow, packages: ServicePackage[]): Prof
     bio: row.bio,
     whyChoose: Array.isArray(row.why_choose) ? row.why_choose : [],
     packages,
+    city,
+    serviceAreas,
+    urgentBadge: row.urgent_badge,
+    isNewFeatured: row.is_new_featured,
+    createdAt: row.created_at,
   };
 }
 
@@ -130,106 +190,206 @@ const PROFESSIONAL_SELECT = `
   service_categories ( slug )
 `;
 
-const PACKAGES_META = {
-  service: 'professionalsService',
-  table: 'professional_service_packages',
-};
+async function fetchZonesForProfessionals(
+  ids: string[],
+  source = 'fetchProfessionals()',
+): Promise<Map<string, string[]>> {
+  if (ids.length === 0) return new Map();
 
-async function fetchPackagesForProfessional(professionalUuid: string): Promise<PackageRow[]> {
-  logQueryStart(PACKAGES_META);
+  const meta = {
+    service: 'professionalsService',
+    table: 'professional_zones',
+    name: 'zonesBatch',
+    source,
+    context: { pros: String(ids.length) },
+  };
+  const queryId = logQueryStart(meta);
   const { data, error } = await supabase
-    .from('professional_service_packages')
-    .select('*')
-    .eq('professional_id', professionalUuid)
+    .from('professional_zones')
+    .select('professional_id, zone_name, sort_order')
+    .in('professional_id', ids)
     .order('sort_order', { ascending: true });
 
   if (error) {
-    logQueryError(PACKAGES_META, error);
-    logFallback(PACKAGES_META, 'errore query');
+    logQueryError(meta, error, queryId);
     throw error;
   }
-  logQuerySuccess(PACKAGES_META, data?.length ?? 0);
-  return data as PackageRow[];
+
+  logQuerySuccess(meta, data?.length ?? 0, queryId);
+  const zonesByPro = new Map<string, string[]>();
+  for (const zone of data ?? []) {
+    const list = zonesByPro.get(zone.professional_id) ?? [];
+    list.push(zone.zone_name);
+    zonesByPro.set(zone.professional_id, list);
+  }
+  return zonesByPro;
+}
+
+async function fetchPackagesForProfessionals(
+  ids: string[],
+  source = 'fetchProfessionals()',
+): Promise<Map<string, PackageRow[]>> {
+  if (ids.length === 0) return new Map();
+
+  const meta = {
+    service: 'professionalsService',
+    table: 'professional_service_packages',
+    name: 'packagesBatch',
+    source,
+    context: { pros: String(ids.length) },
+  };
+  const queryId = logQueryStart(meta);
+  const { data, error } = await supabase
+    .from('professional_service_packages')
+    .select('*')
+    .in('professional_id', ids)
+    .order('sort_order', { ascending: true });
+
+  if (error) {
+    logQueryError(meta, error, queryId);
+    throw error;
+  }
+
+  logQuerySuccess(meta, data?.length ?? 0, queryId);
+  const packagesByPro = new Map<string, PackageRow[]>();
+  for (const pkg of (data ?? []) as PackageRow[]) {
+    const list = packagesByPro.get(pkg.professional_id as string) ?? [];
+    list.push(pkg);
+    packagesByPro.set(pkg.professional_id as string, list);
+  }
+  return packagesByPro;
+}
+
+function mapProfessionalRowSync(
+  row: ProfessionalRow,
+  packages: ServicePackage[],
+  zoneNames?: string[],
+): Professional {
+  return mapProfessional(row, packages, zoneNames);
+}
+
+async function mapProfessionalRows(rows: ProfessionalRow[], source?: string): Promise<Professional[]> {
+  const ids = rows.map((row) => row.id);
+  const resolvedSource = source ?? 'fetchProfessionals()';
+  const [zonesByPro, packagesByPro] = await Promise.all([
+    fetchZonesForProfessionals(ids, resolvedSource),
+    fetchPackagesForProfessionals(ids, resolvedSource),
+  ]);
+
+  return rows.map((row) => {
+    const packages = (packagesByPro.get(row.id) ?? [])
+      .filter((pkg) => pkg.professional_service_id == null)
+      .map(mapPackage);
+    return mapProfessionalRowSync(row, packages, zonesByPro.get(row.id));
+  });
 }
 
 async function mapProfessionalRow(row: ProfessionalRow): Promise<Professional> {
-  const packages = (await fetchPackagesForProfessional(row.id))
+  const [zonesByPro, packagesByPro] = await Promise.all([
+    fetchZonesForProfessionals([row.id]),
+    fetchPackagesForProfessionals([row.id]),
+  ]);
+  const packages = (packagesByPro.get(row.id) ?? [])
     .filter((pkg) => pkg.professional_service_id == null)
     .map(mapPackage);
-  return mapProfessional(row, packages);
+  return mapProfessionalRowSync(row, packages, zonesByPro.get(row.id));
 }
 
-const PROFESSIONALS_META = { service: 'professionalsService', table: 'professionals' };
+const PROFESSIONALS_LIST_META = {
+  service: 'professionalsService',
+  table: 'professionals',
+  name: 'list',
+  source: 'fetchHomeMarketplaceData()',
+};
 
 export async function fetchProfessionals(): Promise<Professional[]> {
-  return withMockFallback(
-    PROFESSIONALS_META,
+  return fetchFromSupabaseOnly(
+    PROFESSIONALS_LIST_META,
     async () => {
       const { data, error } = await supabase
         .from('professionals')
         .select(PROFESSIONAL_SELECT)
+        .eq('verified', true)
         .order('rating', { ascending: false });
 
       if (error) throw error;
-      const rows = data as ProfessionalRow[];
-      return Promise.all(rows.map(mapProfessionalRow));
+      const rows = (data ?? []) as ProfessionalRow[];
+      return mapProfessionalRows(rows, 'fetchHomeMarketplaceData()');
     },
-    MOCK_PROFESSIONALS,
+    [],
   );
 }
 
 export async function fetchProfessionalByLegacyId(legacyId: string): Promise<Professional | null> {
-  const fallback = getProfessionalById(legacyId) ?? null;
-
-  return withMockFallback(
-    PROFESSIONALS_META,
+  return fetchFromSupabaseOnly(
+    {
+      service: 'professionalsService',
+      table: 'professionals',
+      name: 'getByLegacyId',
+      source: 'useProfessional()',
+      context: { legacyId },
+    },
     async () => {
       const { data, error } = await supabase
         .from('professionals')
         .select(PROFESSIONAL_SELECT)
         .eq('legacy_id', legacyId)
+        .eq('verified', true)
         .maybeSingle();
 
       if (error) throw error;
       if (!data) return null;
       return mapProfessionalRow(data as ProfessionalRow);
     },
-    fallback,
+    null,
   );
 }
 
 export async function fetchProfessionalsByCategory(slug: string): Promise<Professional[]> {
-  const fallback = getProfessionalsByCategory(slug);
+  const resolvedSlug = resolveCategorySlug(slug);
 
-  return withMockFallback(
-    PROFESSIONALS_META,
+  return fetchFromSupabaseOnly(
+    {
+      service: 'professionalsService',
+      table: 'professionals',
+      name: 'listByCategory',
+      source: 'useProfessionalsByCategory()',
+      context: { slug: resolvedSlug },
+    },
     async () => {
-      const catMeta = { service: 'professionalsService', table: 'service_categories' };
-      logQueryStart(catMeta);
+      const catMeta = {
+        service: 'professionalsService',
+        table: 'service_categories',
+        name: 'resolveCategory',
+        source: 'fetchProfessionalsByCategory()',
+        context: { slug: resolvedSlug },
+      };
+      const catQueryId = logQueryStart(catMeta);
       const { data: category, error: catError } = await supabase
         .from('service_categories')
         .select('id')
-        .eq('slug', slug)
+        .eq('slug', resolvedSlug)
         .maybeSingle();
 
       if (catError) {
-        logQueryError(catMeta, catError);
+        logQueryError(catMeta, catError, catQueryId);
         throw catError;
       }
-      logQuerySuccess(catMeta, category ? 1 : 0);
+      logQuerySuccess(catMeta, category ? 1 : 0, catQueryId);
       if (!category) return [];
 
       const { data, error } = await supabase
         .from('professionals')
         .select(PROFESSIONAL_SELECT)
+        .eq('verified', true)
         .eq('category_id', category.id)
         .order('rating', { ascending: false });
 
       if (error) throw error;
-      const rows = data as ProfessionalRow[];
-      return Promise.all(rows.map(mapProfessionalRow));
+      const rows = (data ?? []) as ProfessionalRow[];
+      return mapProfessionalRows(rows, 'useProfessionalsByCategory()');
     },
-    fallback,
+    [],
   );
 }
 
@@ -288,8 +448,22 @@ export async function fetchProfessionalDetail(
     return null;
   }
 
-  const detailMeta = { service: 'professionalsService', table: 'professional_detail' };
-  logQueryStart({ service: 'professionalsService', table: 'professionals' });
+  const detailMeta = {
+    service: 'professionalsService',
+    table: 'professional_detail',
+    name: 'load',
+    source: 'useProfessionalDetail()',
+    context: { legacyId },
+  };
+
+  const proLookupMeta = {
+    service: 'professionalsService',
+    table: 'professionals',
+    name: 'resolveForDetail',
+    source: 'useProfessionalDetail()',
+    context: { legacyId },
+  };
+  const proQueryId = logQueryStart(proLookupMeta);
 
   try {
     const { data: pro, error: proError } = await supabase
@@ -299,10 +473,10 @@ export async function fetchProfessionalDetail(
       .maybeSingle();
 
     if (proError) {
-      logQueryError({ service: 'professionalsService', table: 'professionals' }, proError);
+      logQueryError(proLookupMeta, proError, proQueryId);
       return null;
     }
-    logQuerySuccess({ service: 'professionalsService', table: 'professionals' }, pro ? 1 : 0);
+    logQuerySuccess(proLookupMeta, pro ? 1 : 0, proQueryId);
     if (!pro) {
       logFallback(detailMeta, 'professionista non trovato per legacy_id');
       return null;
@@ -333,23 +507,52 @@ export async function fetchProfessionalDetail(
     ]);
 
     const detailTables = [
-      { meta: { service: 'professionalsService', table: 'professional_services' }, res: servicesRes },
       {
-        meta: { service: 'professionalsService', table: 'professional_service_packages' },
+        meta: {
+          service: 'professionalsService',
+          table: 'professional_services',
+          name: 'list',
+          source: 'useProfessionalDetail()',
+        },
+        res: servicesRes,
+      },
+      {
+        meta: {
+          service: 'professionalsService',
+          table: 'professional_service_packages',
+          name: 'list',
+          source: 'useProfessionalDetail()',
+        },
         res: packagesRes,
       },
-      { meta: { service: 'professionalsService', table: 'professional_portfolio' }, res: portfolioRes },
-      { meta: { service: 'professionalsService', table: 'professional_zones' }, res: zonesRes },
+      {
+        meta: {
+          service: 'professionalsService',
+          table: 'professional_portfolio',
+          name: 'list',
+          source: 'useProfessionalDetail()',
+        },
+        res: portfolioRes,
+      },
+      {
+        meta: {
+          service: 'professionalsService',
+          table: 'professional_zones',
+          name: 'list',
+          source: 'useProfessionalDetail()',
+        },
+        res: zonesRes,
+      },
     ] as const;
 
     for (const { meta, res } of detailTables) {
-      logQueryStart(meta);
+      const queryId = logQueryStart(meta);
       if (res.error) {
-        logQueryError(meta, res.error);
+        logQueryError(meta, res.error, queryId);
         throw res.error;
       }
       const count = Array.isArray(res.data) ? res.data.length : res.data ? 1 : 0;
-      logQuerySuccess(meta, count);
+      logQuerySuccess(meta, count, queryId);
     }
 
     const packageRows = (packagesRes.data ?? []) as PackageRow[];
@@ -381,7 +584,13 @@ export async function fetchProfessionalDetail(
       ),
     ].slice(0, 5);
 
-    const zones = ((zonesRes.data ?? []) as ZoneRow[]).map((z) => z.zone_name);
+    const zonesFromDb = ((zonesRes.data ?? []) as ZoneRow[]).map((z) => z.zone_name);
+    const zones =
+      zonesFromDb.length > 0
+        ? zonesFromDb
+        : professional.serviceAreas.length > 0
+          ? [...professional.serviceAreas]
+          : [];
 
     if (services.length === 0 && galleryImages.length <= 2 && zones.length === 0) {
       logFallback(detailMeta, 'nessun dato utile per dettaglio');
@@ -393,61 +602,6 @@ export async function fetchProfessionalDetail(
     logQueryError(detailMeta, error);
     logFallback(detailMeta, 'errore caricamento dettaglio');
     return null;
-  }
-}
-
-// Urgent from DB urgent_badge field
-export async function fetchUrgentFromSupabase(
-  professionals: Professional[],
-): Promise<{ professional: Professional; badge: string }[]> {
-  const meta = { service: 'professionalsService', table: 'professionals (urgent_badge)' };
-  try {
-    logQueryStart(meta);
-    const { data, error } = await supabase
-      .from('professionals')
-      .select('legacy_id, urgent_badge')
-      .not('urgent_badge', 'is', null);
-
-    if (error) throw error;
-    logQuerySuccess(meta, data?.length ?? 0);
-    if (!data?.length) return [];
-
-    const badgeByLegacy = new Map(
-      data.map((row) => [row.legacy_id as string, row.urgent_badge as string]),
-    );
-
-    return professionals
-      .filter((p) => badgeByLegacy.has(p.id))
-      .map((professional) => ({
-        professional,
-        badge: badgeByLegacy.get(professional.id) ?? 'Oggi',
-      }));
-  } catch (error) {
-    logQueryError(meta, error);
-    return [];
-  }
-}
-
-export async function fetchNewFeaturedProfessionals(
-  professionals: Professional[],
-): Promise<Professional[]> {
-  const meta = { service: 'professionalsService', table: 'professionals (is_new_featured)' };
-  try {
-    logQueryStart(meta);
-    const { data, error } = await supabase
-      .from('professionals')
-      .select('legacy_id')
-      .eq('is_new_featured', true);
-
-    if (error) throw error;
-    logQuerySuccess(meta, data?.length ?? 0);
-    if (!data?.length) return [];
-
-    const ids = new Set(data.map((row) => row.legacy_id as string));
-    return professionals.filter((p) => ids.has(p.id));
-  } catch (error) {
-    logQueryError(meta, error);
-    return [];
   }
 }
 
@@ -466,4 +620,50 @@ export function getTopProfessionalsByCategoryFromList(
     .filter((p) => p.categorySlug === slug)
     .sort((a, b) => b.rating - a.rating || b.reviewCount - a.reviewCount)
     .slice(0, limit);
+}
+
+export function getUrgentItemsFromProfessionals(
+  professionals: Professional[],
+  limit?: number,
+): { professional: Professional; badge: string }[] {
+  const items = professionals
+    .filter((p) => Boolean(p.urgentBadge?.trim()))
+    .map((professional) => ({
+      professional,
+      badge: professional.urgentBadge!.trim(),
+    }));
+
+  return limit ? items.slice(0, limit) : items;
+}
+
+/** Massimo professionisti nella sezione «Nuovi verificati» in Home. */
+export const HOME_NEW_VERIFIED_LIMIT = 5;
+
+function professionalNewnessTimestamp(professional: Professional): number {
+  const raw = professional.verifiedAt ?? professional.createdAt;
+  if (!raw) return 0;
+  const timestamp = Date.parse(raw);
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function compareProfessionalsByNewness(a: Professional, b: Professional): number {
+  const byDate = professionalNewnessTimestamp(b) - professionalNewnessTimestamp(a);
+  if (byDate !== 0) return byDate;
+
+  if (Boolean(a.isNewFeatured) !== Boolean(b.isNewFeatured)) {
+    return a.isNewFeatured ? -1 : 1;
+  }
+
+  return a.name.localeCompare(b.name, 'it');
+}
+
+export function getNewFeaturedFromProfessionals(
+  professionals: Professional[],
+  limit = HOME_NEW_VERIFIED_LIMIT,
+): Professional[] {
+  const sorted = professionals
+    .filter((professional) => professional.verified)
+    .sort(compareProfessionalsByNewness);
+
+  return limit > 0 ? sorted.slice(0, limit) : sorted;
 }

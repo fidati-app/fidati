@@ -1,4 +1,9 @@
 import { CATEGORIES } from '@/constants/categories';
+import {
+  getOfficialCategoryName,
+  normalizeOfficialCategories,
+  resolveCategorySlug,
+} from '@/constants/categoryCatalog';
 import { supabase } from '@/lib/supabase';
 import { Category, CategoryIcon, CategorySlug } from '@/types';
 
@@ -17,10 +22,11 @@ interface CategoryRow {
 }
 
 function mapCategory(row: CategoryRow): Category {
+  const slug = resolveCategorySlug(row.slug);
   return {
     id: row.legacy_id ?? row.id,
-    slug: row.slug as CategorySlug,
-    name: row.name,
+    slug,
+    name: getOfficialCategoryName(slug),
     icon: row.icon as CategoryIcon,
     description: row.description,
     professionalCount: row.professional_count,
@@ -28,7 +34,12 @@ function mapCategory(row: CategoryRow): Category {
   };
 }
 
-const META = { service: 'categoriesService', table: 'service_categories' };
+const META = {
+  service: 'categoriesService',
+  table: 'service_categories',
+  name: 'list',
+  source: 'useCategories()',
+};
 
 export async function fetchCategories(): Promise<Category[]> {
   return withMockFallback(
@@ -37,10 +48,11 @@ export async function fetchCategories(): Promise<Category[]> {
       const { data, error } = await supabase
         .from('service_categories')
         .select('*')
+        .eq('is_active', true)
         .order('sort_order', { ascending: true });
 
       if (error) throw error;
-      return (data as CategoryRow[]).map(mapCategory);
+      return normalizeOfficialCategories((data as CategoryRow[]).map(mapCategory));
     },
     CATEGORIES,
   );

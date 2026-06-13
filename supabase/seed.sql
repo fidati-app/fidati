@@ -4,13 +4,96 @@
 -- Marco Rossi: legacy user-1 + mock c1 → un solo customer a100...001
 -- =============================================================================
 
-INSERT INTO service_categories (id, legacy_id, slug, name, icon, description, professional_count, home_count, sort_order) VALUES
-  ('c1000001-0001-4000-8000-000000000001', '1', 'pulizie', 'Pulizie', 'sparkles-outline', 'Professionisti per pulizie domestiche, uffici e post-ristrutturazione.', 128, 1240, 1),
-  ('c1000001-0001-4000-8000-000000000002', '2', 'idraulici', 'Idraulici', 'water-outline', 'Riparazioni, installazioni e manutenzione idraulica.', 94, 860, 2),
-  ('c1000001-0001-4000-8000-000000000003', '3', 'elettricisti', 'Elettricisti', 'flash-outline', 'Impianti elettrici, illuminazione e domotica certificata.', 76, 1120, 3),
-  ('c1000001-0001-4000-8000-000000000004', '4', 'giardinieri', 'Giardinieri', 'leaf-outline', 'Cura del verde, potature e manutenzione giardini.', 52, 780, 4),
-  ('c1000001-0001-4000-8000-000000000005', '5', 'tuttofare', 'Tuttofare', 'construct-outline', 'Piccoli lavori domestici, montaggi e riparazioni.', 110, 1500, 5)
-ON CONFLICT (id) DO NOTHING;
+-- service_categories v12 — preamble idempotente
+ALTER TABLE service_categories
+  ADD COLUMN IF NOT EXISTS image_url TEXT;
+
+ALTER TABLE service_categories
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
+
+ALTER TABLE service_categories
+  DROP CONSTRAINT IF EXISTS service_categories_legacy_id_key;
+
+-- Evita violazioni UNIQUE(legacy_id) durante l'upsert
+UPDATE service_categories SET legacy_id = NULL;
+
+-- Unifica righe duplicate per slug (mantiene UUID canonico del seed)
+DO $$
+DECLARE
+  cat RECORD;
+  dup RECORD;
+BEGIN
+  FOR cat IN
+    SELECT * FROM (VALUES
+      ('c1000001-0001-4000-8000-000000000003'::uuid, 'elettricisti'),
+      ('c1000001-0001-4000-8000-000000000002'::uuid, 'idraulici'),
+      ('c1000001-0001-4000-8000-000000000005'::uuid, 'fabbri'),
+      ('c1000001-0001-4000-8000-000000000004'::uuid, 'giardinieri'),
+      ('c1000001-0001-4000-8000-000000000001'::uuid, 'pulizie'),
+      ('c1000001-0001-4000-8000-000000000006'::uuid, 'imbianchini'),
+      ('c1000001-0001-4000-8000-000000000007'::uuid, 'serramentisti'),
+      ('c1000001-0001-4000-8000-000000000008'::uuid, 'tecnici-caldaie-condizionatori'),
+      ('c1000001-0001-4000-8000-000000000009'::uuid, 'traslochi-sgomberi'),
+      ('c1000001-0001-4000-8000-000000000010'::uuid, 'antennisti'),
+      ('c1000001-0001-4000-8000-000000000011'::uuid, 'montaggio-mobili'),
+      ('c1000001-0001-4000-8000-000000000012'::uuid, 'tende-da-sole')
+    ) AS t(canonical_id, slug)
+  LOOP
+    FOR dup IN
+      SELECT id FROM service_categories
+      WHERE slug = cat.slug AND id <> cat.canonical_id
+    LOOP
+      UPDATE services SET category_id = cat.canonical_id WHERE category_id = dup.id;
+      UPDATE professionals SET category_id = cat.canonical_id WHERE category_id = dup.id;
+      UPDATE home_popular_services SET category_id = cat.canonical_id WHERE category_id = dup.id;
+      UPDATE home_offers SET category_id = cat.canonical_id WHERE category_id = dup.id;
+      DELETE FROM service_categories WHERE id = dup.id;
+    END LOOP;
+  END LOOP;
+END $$;
+
+UPDATE service_categories SET is_active = false WHERE slug = 'tuttofare';
+
+INSERT INTO service_categories (id, legacy_id, slug, name, icon, description, professional_count, home_count, sort_order, image_url, is_active) VALUES
+  ('c1000001-0001-4000-8000-000000000003', '1', 'elettricisti', 'Elettricisti', 'flash-outline', 'Installazioni, riparazioni e pronto intervento elettrico.', 76, 1120, 1, 'https://qyptmczxkzxycsgqgesl.supabase.co/storage/v1/object/public/category-images/elettricisti.webp', true),
+  ('c1000001-0001-4000-8000-000000000002', '2', 'idraulici', 'Idraulici', 'water-outline', 'Riparazioni, perdite e installazioni idrauliche.', 94, 860, 2, 'https://qyptmczxkzxycsgqgesl.supabase.co/storage/v1/object/public/category-images/idraulici.webp', true),
+  ('c1000001-0001-4000-8000-000000000005', '3', 'fabbri', 'Fabbri', 'key-outline', 'Aperture porte, serrature e lavori in ferro.', 48, 620, 3, 'https://qyptmczxkzxycsgqgesl.supabase.co/storage/v1/object/public/category-images/fabbri.webp', true),
+  ('c1000001-0001-4000-8000-000000000004', '4', 'giardinieri', 'Giardinieri', 'leaf-outline', 'Cura e manutenzione di giardini e spazi verdi.', 52, 780, 4, 'https://qyptmczxkzxycsgqgesl.supabase.co/storage/v1/object/public/category-images/giardinieri.webp', true),
+  ('c1000001-0001-4000-8000-000000000001', '5', 'pulizie', 'Pulizie', 'sparkles-outline', 'Servizi di pulizia per casa e ufficio.', 128, 1240, 5, 'https://qyptmczxkzxycsgqgesl.supabase.co/storage/v1/object/public/category-images/pulizie.webp', true),
+  ('c1000001-0001-4000-8000-000000000006', '6', 'imbianchini', 'Imbianchini', 'color-palette-outline', 'Tinteggiatura e lavori di pittura.', 64, 540, 6, 'https://qyptmczxkzxycsgqgesl.supabase.co/storage/v1/object/public/category-images/imbianchini.webp', true),
+  ('c1000001-0001-4000-8000-000000000007', '7', 'serramentisti', 'Infissi', 'albums-outline', 'Installazione e riparazione di infissi e serramenti.', 58, 490, 7, 'https://qyptmczxkzxycsgqgesl.supabase.co/storage/v1/object/public/category-images/serramentisti.webp', true),
+  ('c1000001-0001-4000-8000-000000000008', '8', 'tecnici-caldaie-condizionatori', 'Caldaie e condizionatori', 'thermometer-outline', 'Installazione, manutenzione e assistenza.', 72, 710, 8, 'https://qyptmczxkzxycsgqgesl.supabase.co/storage/v1/object/public/category-images/tecnici-caldaie-condizionatori.webp', true),
+  ('c1000001-0001-4000-8000-000000000009', '9', 'traslochi-sgomberi', 'Traslochi e sgomberi', 'car-outline', 'Trasporti, traslochi e svuotamento locali.', 41, 430, 9, 'https://qyptmczxkzxycsgqgesl.supabase.co/storage/v1/object/public/category-images/traslochi-sgomberi.webp', true),
+  ('c1000001-0001-4000-8000-000000000010', '10', 'antennisti', 'Antennisti', 'radio-outline', 'Installazione e manutenzione antenne TV e satellitari.', 36, 380, 10, 'https://qyptmczxkzxycsgqgesl.supabase.co/storage/v1/object/public/category-images/antennisti.webp', true),
+  ('c1000001-0001-4000-8000-000000000011', '11', 'montaggio-mobili', 'Montaggio mobili', 'cube-outline', 'Assemblaggio e montaggio mobili.', 86, 980, 11, 'https://qyptmczxkzxycsgqgesl.supabase.co/storage/v1/object/public/category-images/montaggio-mobili.webp', true),
+  ('c1000001-0001-4000-8000-000000000012', '12', 'tende-da-sole', 'Tende da sole', 'sunny-outline', 'Installazione e manutenzione tende da sole.', 33, 310, 12, 'https://qyptmczxkzxycsgqgesl.supabase.co/storage/v1/object/public/category-images/tende-da-sole.webp', true)
+ON CONFLICT (id) DO UPDATE SET
+  legacy_id = EXCLUDED.legacy_id,
+  slug = EXCLUDED.slug,
+  name = EXCLUDED.name,
+  icon = EXCLUDED.icon,
+  description = EXCLUDED.description,
+  professional_count = EXCLUDED.professional_count,
+  home_count = EXCLUDED.home_count,
+  sort_order = EXCLUDED.sort_order,
+  image_url = EXCLUDED.image_url,
+  is_active = EXCLUDED.is_active;
+
+-- Ripristina FK e slug legacy dopo upsert categorie v12
+UPDATE professionals
+SET category_id = (SELECT id FROM service_categories WHERE slug = 'montaggio-mobili' LIMIT 1),
+    category_label = 'Montaggio mobili'
+WHERE category_id IN (SELECT id FROM service_categories WHERE slug = 'tuttofare');
+
+UPDATE home_service_tiles SET category_slug = 'montaggio-mobili' WHERE category_slug = 'tuttofare' AND legacy_id = 'c6';
+UPDATE home_service_tiles SET category_slug = 'imbianchini' WHERE category_slug = 'tuttofare' AND legacy_id = 'c7';
+UPDATE home_service_tiles SET category_slug = 'fabbri' WHERE category_slug = 'tuttofare' AND legacy_id = 'c8';
+UPDATE home_service_tiles SET category_slug = 'traslochi-sgomberi' WHERE category_slug = 'tuttofare' AND legacy_id = 'c10';
+UPDATE home_service_tiles SET category_slug = 'traslochi-sgomberi' WHERE category_slug = 'tuttofare' AND legacy_id = 'a8';
+UPDATE home_service_tiles SET category_slug = 'pulizie' WHERE category_slug = 'tuttofare' AND legacy_id = 'a9';
+UPDATE home_service_tiles SET category_slug = 'tecnici-caldaie-condizionatori' WHERE category_slug = 'tuttofare' AND legacy_id = 'a10';
+
+
 
 INSERT INTO services (id, legacy_id, category_id, title, icon, description, from_price, weekly_bookings, image_url, sort_order) VALUES
   ('d1000001-0001-4000-8000-000000000001', 'pul-deep', 'c1000001-0001-4000-8000-000000000001', 'Pulizia profonda casa', 'home-outline', 'Pavimenti, bagno, cucina e superfici', 45, 1240, NULL, 1),
@@ -34,11 +117,22 @@ INSERT INTO services (id, legacy_id, category_id, title, icon, description, from
   ('d1000001-0001-4000-8000-000000000019', 'gia-grass', 'c1000001-0001-4000-8000-000000000004', 'Erba e siepi', 'cut-outline', 'Taglio prato e rifiniture', 35, 780, NULL, 3),
   ('d1000001-0001-4000-8000-000000000020', 'gia-terra', 'c1000001-0001-4000-8000-000000000004', 'Terrazzi e balconi', 'sunny-outline', 'Vasi, piante e pulizia verde', 40, 390, NULL, 4),
   ('d1000001-0001-4000-8000-000000000021', 'gia-irr', 'c1000001-0001-4000-8000-000000000004', 'Irrigazione', 'rainy-outline', 'Installazione e programmazione', 80, 180, NULL, 5),
-  ('d1000001-0001-4000-8000-000000000022', 'tut-furniture', 'c1000001-0001-4000-8000-000000000005', 'Montaggio mobili', 'cube-outline', 'IKEA, cucine e armadi', 35, 1120, NULL, 1),
-  ('d1000001-0001-4000-8000-000000000023', 'tut-fix', 'c1000001-0001-4000-8000-000000000005', 'Riparazioni casa', 'hammer-outline', 'Tapparelle, serrature, piccoli guasti', 40, 980, NULL, 2),
-  ('d1000001-0001-4000-8000-000000000024', 'tut-small', 'c1000001-0001-4000-8000-000000000005', 'Piccoli lavori', 'construct-outline', 'Appendere quadri, mensole, tende', 30, 1500, NULL, 3),
-  ('d1000001-0001-4000-8000-000000000025', 'tut-paint', 'c1000001-0001-4000-8000-000000000005', 'Tinteggiatura', 'color-palette-outline', 'Pareti, soffitti e ritocchi', 70, 420, NULL, 4),
-  ('d1000001-0001-4000-8000-000000000026', 'tut-door', 'c1000001-0001-4000-8000-000000000005', 'Serramenti', 'lock-closed-outline', 'Porte, maniglie e cerniere', 45, 360, NULL, 5)
+  ('d1000001-0001-4000-8000-000000000022', 'mob-furniture', 'c1000001-0001-4000-8000-000000000011', 'Montaggio mobili', 'cube-outline', 'IKEA, cucine e armadi', 35, 1120, NULL, 1),
+  ('d1000001-0001-4000-8000-000000000023', 'mob-small', 'c1000001-0001-4000-8000-000000000011', 'Fissaggi e mensole', 'construct-outline', 'Appendere quadri, mensole, TV', 30, 800, NULL, 2),
+  ('d1000001-0001-4000-8000-000000000024', 'fab-lock', 'c1000001-0001-4000-8000-000000000005', 'Aperture e serrature', 'key-outline', 'Porte bloccate e sostituzione serrature', 50, 360, NULL, 1),
+  ('d1000001-0001-4000-8000-000000000025', 'fab-iron', 'c1000001-0001-4000-8000-000000000005', 'Lavori in ferro', 'hammer-outline', 'Ringhiere, cancelli e strutture', 80, 180, NULL, 2),
+  ('d1000001-0001-4000-8000-000000000026', 'imb-paint', 'c1000001-0001-4000-8000-000000000006', 'Tinteggiatura interni', 'color-palette-outline', 'Pareti, soffitti e ritocchi', 70, 420, NULL, 1),
+  ('d1000001-0001-4000-8000-000000000027', 'imb-ext', 'c1000001-0001-4000-8000-000000000006', 'Pittura esterni', 'home-outline', 'Facciate e balconi', 120, 200, NULL, 2),
+  ('d1000001-0001-4000-8000-000000000028', 'ser-window', 'c1000001-0001-4000-8000-000000000007', 'Infissi e finestre', 'albums-outline', 'Sostituzione e regolazione', 65, 290, NULL, 1),
+  ('d1000001-0001-4000-8000-000000000029', 'ser-door', 'c1000001-0001-4000-8000-000000000007', 'Porte e serramenti', 'lock-closed-outline', 'Porte, maniglie e cerniere', 45, 360, NULL, 2),
+  ('d1000001-0001-4000-8000-000000000030', 'tcl-boiler', 'c1000001-0001-4000-8000-000000000008', 'Caldaia e riscaldamento', 'flame-outline', 'Manutenzione e assistenza', 70, 380, NULL, 1),
+  ('d1000001-0001-4000-8000-000000000031', 'tcl-ac', 'c1000001-0001-4000-8000-000000000008', 'Condizionatori', 'snow-outline', 'Installazione e manutenzione', 80, 520, NULL, 2),
+  ('d1000001-0001-4000-8000-000000000032', 'tra-move', 'c1000001-0001-4000-8000-000000000009', 'Traslochi', 'car-outline', 'Trasporto mobili e scatoloni', 120, 430, NULL, 1),
+  ('d1000001-0001-4000-8000-000000000033', 'tra-clear', 'c1000001-0001-4000-8000-000000000009', 'Sgomberi', 'trash-outline', 'Svuotamento cantine e locali', 90, 310, NULL, 2),
+  ('d1000001-0001-4000-8000-000000000034', 'ant-tv', 'c1000001-0001-4000-8000-000000000010', 'Antenne TV', 'radio-outline', 'Installazione e puntamento', 60, 250, NULL, 1),
+  ('d1000001-0001-4000-8000-000000000035', 'ant-sat', 'c1000001-0001-4000-8000-000000000010', 'Parabole satellitari', 'planet-outline', 'Installazione e configurazione', 90, 180, NULL, 2),
+  ('d1000001-0001-4000-8000-000000000036', 'ten-install', 'c1000001-0001-4000-8000-000000000012', 'Installazione tende', 'sunny-outline', 'Tende da sole e pergole', 85, 200, NULL, 1),
+  ('d1000001-0001-4000-8000-000000000037', 'ten-maint', 'c1000001-0001-4000-8000-000000000012', 'Manutenzione tende', 'build-outline', 'Riparazione e sostituzione teli', 55, 150, NULL, 2)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO service_packages (id, legacy_id, service_id, tier, title, description, price, duration_label, sort_order) VALUES
@@ -85,16 +179,38 @@ INSERT INTO service_packages (id, legacy_id, service_id, tier, title, descriptio
   ('e1000001-0001-4000-8000-000000000041', 'gia-terra-s', 'd1000001-0001-4000-8000-000000000020', 'standard', 'Terrazzo grande', 'Con irrigazione', 70, '2.5 ore', 8),
   ('e1000001-0001-4000-8000-000000000042', 'gia-irr-b', 'd1000001-0001-4000-8000-000000000021', 'base', 'Controllo impianto', 'Taratura e test', 80, '2 ore', 9),
   ('e1000001-0001-4000-8000-000000000043', 'gia-irr-p', 'd1000001-0001-4000-8000-000000000021', 'premium', 'Nuovo impianto', 'Fino a 200 mq', 220, '6 ore', 10),
-  ('e1000001-0001-4000-8000-000000000044', 'tut-furniture-b', 'd1000001-0001-4000-8000-000000000022', 'base', 'Singolo mobile', 'Comò, libreria, scrivania', 35, '1.5 ore', 1),
-  ('e1000001-0001-4000-8000-000000000045', 'tut-furniture-s', 'd1000001-0001-4000-8000-000000000022', 'standard', 'Camera completa', 'Fino a 4 mobili', 75, '3 ore', 2),
-  ('e1000001-0001-4000-8000-000000000046', 'tut-fix-b', 'd1000001-0001-4000-8000-000000000023', 'base', 'Intervento singolo', 'Una riparazione', 40, '1 ora', 3),
-  ('e1000001-0001-4000-8000-000000000047', 'tut-fix-s', 'd1000001-0001-4000-8000-000000000023', 'standard', 'Pacchetto 3 interventi', 'Nella stessa visita', 95, '3 ore', 4),
-  ('e1000001-0001-4000-8000-000000000048', 'tut-small-b', 'd1000001-0001-4000-8000-000000000024', 'base', '1 ora lavoro', 'Lista interventi brevi', 30, '1 ora', 5),
-  ('e1000001-0001-4000-8000-000000000049', 'tut-small-s', 'd1000001-0001-4000-8000-000000000024', 'standard', '2 ore lavoro', 'Più attività insieme', 55, '2 ore', 6),
-  ('e1000001-0001-4000-8000-000000000050', 'tut-paint-b', 'd1000001-0001-4000-8000-000000000025', 'base', 'Singola parete', 'Fino a 12 mq', 70, '3 ore', 7),
-  ('e1000001-0001-4000-8000-000000000051', 'tut-paint-p', 'd1000001-0001-4000-8000-000000000025', 'premium', 'Stanza intera', 'Fino a 15 mq', 150, '6 ore', 8),
-  ('e1000001-0001-4000-8000-000000000052', 'tut-door-b', 'd1000001-0001-4000-8000-000000000026', 'base', 'Regolazione porta', 'Cerniere e chiudiporta', 45, '1 ora', 9),
-  ('e1000001-0001-4000-8000-000000000053', 'tut-door-s', 'd1000001-0001-4000-8000-000000000026', 'standard', 'Sostituzione serratura', 'Con collaudo', 80, '2 ore', 10)
+  ('e1000001-0001-4000-8000-000000000044', 'mob-furniture-b', 'd1000001-0001-4000-8000-000000000022', 'base', 'Singolo mobile', 'Comò, libreria, scrivania', 35, '1.5 ore', 1),
+  ('e1000001-0001-4000-8000-000000000045', 'mob-furniture-s', 'd1000001-0001-4000-8000-000000000022', 'standard', 'Camera completa', 'Fino a 4 mobili', 75, '3 ore', 2),
+  ('e1000001-0001-4000-8000-000000000046', 'mob-small-b', 'd1000001-0001-4000-8000-000000000023', 'base', '1 ora lavoro', 'Lista interventi brevi', 30, '1 ora', 3),
+  ('e1000001-0001-4000-8000-000000000047', 'mob-small-s', 'd1000001-0001-4000-8000-000000000023', 'standard', '2 ore lavoro', 'Più attività insieme', 55, '2 ore', 4),
+  ('e1000001-0001-4000-8000-000000000048', 'fab-lock-b', 'd1000001-0001-4000-8000-000000000024', 'base', 'Apertura porta', 'Intervento urgente', 50, '1 ora', 1),
+  ('e1000001-0001-4000-8000-000000000049', 'fab-lock-s', 'd1000001-0001-4000-8000-000000000024', 'standard', 'Sostituzione serratura', 'Con collaudo', 90, '2 ore', 2),
+  ('e1000001-0001-4000-8000-000000000050', 'fab-iron-b', 'd1000001-0001-4000-8000-000000000025', 'base', 'Riparazione', 'Singolo elemento', 80, '2 ore', 3),
+  ('e1000001-0001-4000-8000-000000000051', 'fab-iron-p', 'd1000001-0001-4000-8000-000000000025', 'premium', 'Realizzazione', 'Su misura', 180, '4 ore', 4),
+  ('e1000001-0001-4000-8000-000000000052', 'imb-paint-b', 'd1000001-0001-4000-8000-000000000026', 'base', 'Singola parete', 'Fino a 12 mq', 70, '3 ore', 1),
+  ('e1000001-0001-4000-8000-000000000053', 'imb-paint-p', 'd1000001-0001-4000-8000-000000000026', 'premium', 'Stanza intera', 'Fino a 15 mq', 150, '6 ore', 2),
+  ('e1000001-0001-4000-8000-000000000054', 'imb-ext-b', 'd1000001-0001-4000-8000-000000000027', 'base', 'Balcone', 'Fino a 20 mq', 120, '4 ore', 3),
+  ('e1000001-0001-4000-8000-000000000055', 'imb-ext-s', 'd1000001-0001-4000-8000-000000000027', 'standard', 'Facciata parziale', 'Fino a 40 mq', 220, '8 ore', 4),
+  ('e1000001-0001-4000-8000-000000000056', 'ser-window-b', 'd1000001-0001-4000-8000-000000000028', 'base', 'Regolazione', 'Singolo infisso', 65, '1.5 ore', 1),
+  ('e1000001-0001-4000-8000-000000000057', 'ser-window-s', 'd1000001-0001-4000-8000-000000000028', 'standard', 'Sostituzione', 'Finestra standard', 180, '4 ore', 2),
+  ('e1000001-0001-4000-8000-000000000058', 'ser-door-b', 'd1000001-0001-4000-8000-000000000029', 'base', 'Regolazione porta', 'Cerniere e chiudiporta', 45, '1 ora', 3),
+  ('e1000001-0001-4000-8000-000000000059', 'ser-door-s', 'd1000001-0001-4000-8000-000000000029', 'standard', 'Sostituzione serratura', 'Con collaudo', 80, '2 ore', 4),
+  ('e1000001-0001-4000-8000-000000000060', 'tcl-boiler-b', 'd1000001-0001-4000-8000-000000000030', 'base', 'Controllo annuale', 'Pulizia e verifica', 70, '1.5 ore', 1),
+  ('e1000001-0001-4000-8000-000000000061', 'tcl-boiler-p', 'd1000001-0001-4000-8000-000000000030', 'premium', 'Manutenzione full', 'Ricambi base inclusi', 130, '3 ore', 2),
+  ('e1000001-0001-4000-8000-000000000062', 'tcl-ac-b', 'd1000001-0001-4000-8000-000000000031', 'base', 'Pulizia split', 'Singola unità', 80, '2 ore', 3),
+  ('e1000001-0001-4000-8000-000000000063', 'tcl-ac-s', 'd1000001-0001-4000-8000-000000000031', 'standard', 'Installazione', 'Mono split', 250, '4 ore', 4),
+  ('e1000001-0001-4000-8000-000000000064', 'tra-move-b', 'd1000001-0001-4000-8000-000000000032', 'base', 'Monolocale', 'Fino a 30 mq', 120, '4 ore', 1),
+  ('e1000001-0001-4000-8000-000000000065', 'tra-move-s', 'd1000001-0001-4000-8000-000000000032', 'standard', 'Bilocale', 'Fino a 60 mq', 220, '6 ore', 2),
+  ('e1000001-0001-4000-8000-000000000066', 'tra-clear-b', 'd1000001-0001-4000-8000-000000000033', 'base', 'Piccolo locale', 'Fino a 15 mq', 90, '3 ore', 3),
+  ('e1000001-0001-4000-8000-000000000067', 'tra-clear-s', 'd1000001-0001-4000-8000-000000000033', 'standard', 'Cantina/garage', 'Fino a 30 mq', 160, '5 ore', 4),
+  ('e1000001-0001-4000-8000-000000000068', 'ant-tv-b', 'd1000001-0001-4000-8000-000000000034', 'base', 'Puntamento', 'Segnale ottimizzato', 60, '1.5 ore', 1),
+  ('e1000001-0001-4000-8000-000000000069', 'ant-tv-s', 'd1000001-0001-4000-8000-000000000034', 'standard', 'Nuova antenna', 'Con installazione', 120, '3 ore', 2),
+  ('e1000001-0001-4000-8000-000000000070', 'ant-sat-b', 'd1000001-0001-4000-8000-000000000035', 'base', 'Configurazione', 'Decoder e LNB', 90, '2 ore', 3),
+  ('e1000001-0001-4000-8000-000000000071', 'ant-sat-p', 'd1000001-0001-4000-8000-000000000035', 'premium', 'Installazione completa', 'Parabola + cavi', 180, '4 ore', 4),
+  ('e1000001-0001-4000-8000-000000000072', 'ten-install-b', 'd1000001-0001-4000-8000-000000000036', 'base', 'Balcone', 'Fino a 3 mq', 85, '2 ore', 1),
+  ('e1000001-0001-4000-8000-000000000073', 'ten-install-s', 'd1000001-0001-4000-8000-000000000036', 'standard', 'Terrazzo', 'Fino a 8 mq', 150, '4 ore', 2),
+  ('e1000001-0001-4000-8000-000000000074', 'ten-maint-b', 'd1000001-0001-4000-8000-000000000037', 'base', 'Regolazione', 'Meccanismo e guide', 55, '1.5 ore', 3),
+  ('e1000001-0001-4000-8000-000000000075', 'ten-maint-s', 'd1000001-0001-4000-8000-000000000037', 'standard', 'Sostituzione telo', 'Con materiali base', 110, '3 ore', 4)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO customers (id, legacy_id, name, email, phone, image_url, avatar_color, member_since, bookings_count, completed_count, rating) VALUES
@@ -150,9 +266,9 @@ INSERT INTO professionals (
    4.7, 52, 145, 30, 3.4, false, true,
    true, true, false,
    NULL, 0, 0, 0, 0, 100, 'verified', 0, false, NULL, false),
-  ('b1000001-0001-4000-8000-000000000005', '5', 'c1000001-0001-4000-8000-000000000005', 'Luca Conti', 'Tuttofare', NULL, NULL,
+  ('b1000001-0001-4000-8000-000000000005', '5', 'c1000001-0001-4000-8000-000000000011', 'Luca Conti', 'Montaggio mobili', NULL, NULL,
    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&h=600&fit=crop', '#6366F1',
-   'Tuttofare versatile: montaggi mobili, piccole riparazioni, pittura e lavori domestici.', '["Disponibilità flessibile","Montaggio mobili IKEA e simili","Attrezzi professionali inclusi","290 lavori completati"]'::jsonb,
+   'Specialista in montaggio mobili IKEA e cucine. Attrezzi professionali inclusi.', '["Disponibilità flessibile","Montaggio mobili IKEA e simili","Attrezzi professionali inclusi","290 lavori completati"]'::jsonb,
    4.6, 98, 290, 35, 1.8, true, true,
    true, true, true,
    NULL, 0, 0, 0, 0, 100, 'verified', 0, false, 'Entro 2 ore', false),
@@ -204,15 +320,15 @@ INSERT INTO professionals (
    4.9, 61, 165, 32, 4.2, false, true,
    true, true, true,
    NULL, 0, 0, 0, 0, 100, 'verified', 0, false, NULL, false),
-  ('b1000001-0001-4000-8000-000000000014', '14', 'c1000001-0001-4000-8000-000000000005', 'Davide Moretti', 'Tuttofare', NULL, NULL,
+  ('b1000001-0001-4000-8000-000000000014', '14', 'c1000001-0001-4000-8000-000000000011', 'Davide Moretti', 'Montaggio mobili', NULL, NULL,
    'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=face', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&h=600&fit=crop', '#64748B',
-   'Montaggi, riparazioni e piccoli lavori domestici.', '["Multicompetente","Disponibile weekend"]'::jsonb,
+   'Montaggi mobili e fissaggi per casa e ufficio.', '["Multicompetente","Disponibile weekend"]'::jsonb,
    4.7, 102, 260, 32, 1.1, true, true,
    true, true, true,
    NULL, 0, 0, 0, 0, 100, 'verified', 0, false, NULL, false),
-  ('b1000001-0001-4000-8000-000000000015', '15', 'c1000001-0001-4000-8000-000000000005', 'Simone Riva', 'Tuttofare', NULL, NULL,
+  ('b1000001-0001-4000-8000-000000000015', '15', 'c1000001-0001-4000-8000-000000000006', 'Simone Riva', 'Imbianchini', NULL, NULL,
    'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&h=200&fit=crop&crop=face', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&h=600&fit=crop', '#475569',
-   'Tuttofare per casa e ufficio, montaggi e fissaggi.', '["Prezzi chiari","Lavoro pulito"]'::jsonb,
+   'Imbianchino per interni ed esterni, tinteggiatura e ritocchi.', '["Prezzi chiari","Lavoro pulito"]'::jsonb,
    4.5, 78, 175, 30, 2.6, true, false,
    true, true, false,
    NULL, 0, 0, 0, 0, 100, 'verified', 0, false, NULL, false)
@@ -264,8 +380,8 @@ INSERT INTO professional_zones (professional_id, zone_name, sort_order) VALUES
   ('b1000001-0001-4000-8000-000000000014', 'Lambrate', 2),
   ('b1000001-0001-4000-8000-000000000014', 'Isola', 3),
   ('b1000001-0001-4000-8000-000000000015', 'Centro', 1),
-  ('b1000001-0001-4000-8000-000000000015', 'Lambrate', 2),
-  ('b1000001-0001-4000-8000-000000000015', 'Isola', 3)
+  ('b1000001-0001-4000-8000-000000000015', 'Brera', 2),
+  ('b1000001-0001-4000-8000-000000000015', 'Navigli', 3)
 ON CONFLICT (professional_id, zone_name) DO NOTHING;
 
 INSERT INTO professional_services (id, legacy_id, professional_id, catalog_service_id, title, price_from, duration_label, sort_order) VALUES
@@ -290,63 +406,54 @@ INSERT INTO professional_services (id, legacy_id, professional_id, catalog_servi
   ('f1000001-0001-4000-8000-000000000019', '4-gia-grass', 'b1000001-0001-4000-8000-000000000004', 'd1000001-0001-4000-8000-000000000019', 'Erba e siepi', 35, '1.5 ore', 3),
   ('f1000001-0001-4000-8000-000000000020', '4-gia-terra', 'b1000001-0001-4000-8000-000000000004', 'd1000001-0001-4000-8000-000000000020', 'Terrazzi e balconi', 40, '1.5 ore', 4),
   ('f1000001-0001-4000-8000-000000000021', '4-gia-irr', 'b1000001-0001-4000-8000-000000000004', 'd1000001-0001-4000-8000-000000000021', 'Irrigazione', 80, '2 ore', 5),
-  ('f1000001-0001-4000-8000-000000000022', '5-tut-furniture', 'b1000001-0001-4000-8000-000000000005', 'd1000001-0001-4000-8000-000000000022', 'Montaggio mobili', 35, '1.5 ore', 1),
-  ('f1000001-0001-4000-8000-000000000023', '5-tut-fix', 'b1000001-0001-4000-8000-000000000005', 'd1000001-0001-4000-8000-000000000023', 'Riparazioni casa', 40, '1 ora', 2),
-  ('f1000001-0001-4000-8000-000000000024', '5-tut-small', 'b1000001-0001-4000-8000-000000000005', 'd1000001-0001-4000-8000-000000000024', 'Piccoli lavori', 30, '1 ora', 3),
-  ('f1000001-0001-4000-8000-000000000025', '5-tut-paint', 'b1000001-0001-4000-8000-000000000005', 'd1000001-0001-4000-8000-000000000025', 'Tinteggiatura', 70, '3 ore', 4),
-  ('f1000001-0001-4000-8000-000000000026', '5-tut-door', 'b1000001-0001-4000-8000-000000000005', 'd1000001-0001-4000-8000-000000000026', 'Serramenti', 45, '1 ora', 5),
-  ('f1000001-0001-4000-8000-000000000027', '6-pul-deep', 'b1000001-0001-4000-8000-000000000006', 'd1000001-0001-4000-8000-000000000001', 'Pulizia profonda casa', 45, '2 ore', 1),
-  ('f1000001-0001-4000-8000-000000000028', '6-pul-office', 'b1000001-0001-4000-8000-000000000006', 'd1000001-0001-4000-8000-000000000002', 'Pulizie ufficio', 60, '2 ore', 2),
-  ('f1000001-0001-4000-8000-000000000029', '6-pul-post', 'b1000001-0001-4000-8000-000000000006', 'd1000001-0001-4000-8000-000000000003', 'Post-ristrutturazione', 90, '4 ore', 3),
-  ('f1000001-0001-4000-8000-000000000030', '6-pul-glass', 'b1000001-0001-4000-8000-000000000006', 'd1000001-0001-4000-8000-000000000004', 'Lavaggio vetri', 35, '1.5 ore', 4),
-  ('f1000001-0001-4000-8000-000000000031', '6-pul-sani', 'b1000001-0001-4000-8000-000000000006', 'd1000001-0001-4000-8000-000000000005', 'Sanificazione', 55, '1.5 ore', 5),
-  ('f1000001-0001-4000-8000-000000000032', '7-pul-deep', 'b1000001-0001-4000-8000-000000000007', 'd1000001-0001-4000-8000-000000000001', 'Pulizia profonda casa', 45, '2 ore', 1),
-  ('f1000001-0001-4000-8000-000000000033', '7-pul-office', 'b1000001-0001-4000-8000-000000000007', 'd1000001-0001-4000-8000-000000000002', 'Pulizie ufficio', 60, '2 ore', 2),
-  ('f1000001-0001-4000-8000-000000000034', '7-pul-post', 'b1000001-0001-4000-8000-000000000007', 'd1000001-0001-4000-8000-000000000003', 'Post-ristrutturazione', 90, '4 ore', 3),
-  ('f1000001-0001-4000-8000-000000000035', '7-pul-glass', 'b1000001-0001-4000-8000-000000000007', 'd1000001-0001-4000-8000-000000000004', 'Lavaggio vetri', 35, '1.5 ore', 4),
-  ('f1000001-0001-4000-8000-000000000036', '7-pul-sani', 'b1000001-0001-4000-8000-000000000007', 'd1000001-0001-4000-8000-000000000005', 'Sanificazione', 55, '1.5 ore', 5),
-  ('f1000001-0001-4000-8000-000000000037', '8-idr-leak', 'b1000001-0001-4000-8000-000000000008', 'd1000001-0001-4000-8000-000000000006', 'Perdite e tubature', 40, '1 ora', 1),
-  ('f1000001-0001-4000-8000-000000000038', '8-idr-tap', 'b1000001-0001-4000-8000-000000000008', 'd1000001-0001-4000-8000-000000000007', 'Rubinetteria', 50, '1 ora', 2),
-  ('f1000001-0001-4000-8000-000000000039', '8-idr-boiler', 'b1000001-0001-4000-8000-000000000008', 'd1000001-0001-4000-8000-000000000008', 'Caldaia e boiler', 70, '1.5 ore', 3),
-  ('f1000001-0001-4000-8000-000000000040', '8-idr-drain', 'b1000001-0001-4000-8000-000000000008', 'd1000001-0001-4000-8000-000000000009', 'Scarichi otturati', 45, '1 ora', 4),
-  ('f1000001-0001-4000-8000-000000000041', '8-idr-install', 'b1000001-0001-4000-8000-000000000008', 'd1000001-0001-4000-8000-000000000010', 'Installazioni', 65, '1.5 ore', 5),
-  ('f1000001-0001-4000-8000-000000000042', '9-idr-leak', 'b1000001-0001-4000-8000-000000000009', 'd1000001-0001-4000-8000-000000000006', 'Perdite e tubature', 40, '1 ora', 1),
-  ('f1000001-0001-4000-8000-000000000043', '9-idr-tap', 'b1000001-0001-4000-8000-000000000009', 'd1000001-0001-4000-8000-000000000007', 'Rubinetteria', 50, '1 ora', 2),
-  ('f1000001-0001-4000-8000-000000000044', '9-idr-boiler', 'b1000001-0001-4000-8000-000000000009', 'd1000001-0001-4000-8000-000000000008', 'Caldaia e boiler', 70, '1.5 ore', 3),
-  ('f1000001-0001-4000-8000-000000000045', '9-idr-drain', 'b1000001-0001-4000-8000-000000000009', 'd1000001-0001-4000-8000-000000000009', 'Scarichi otturati', 45, '1 ora', 4),
-  ('f1000001-0001-4000-8000-000000000046', '9-idr-install', 'b1000001-0001-4000-8000-000000000009', 'd1000001-0001-4000-8000-000000000010', 'Installazioni', 65, '1.5 ore', 5),
-  ('f1000001-0001-4000-8000-000000000047', '10-ele-point', 'b1000001-0001-4000-8000-000000000010', 'd1000001-0001-4000-8000-000000000011', 'Punto luce e prese', 45, '1 ora', 1),
-  ('f1000001-0001-4000-8000-000000000048', '10-ele-panel', 'b1000001-0001-4000-8000-000000000010', 'd1000001-0001-4000-8000-000000000012', 'Quadro elettrico', 90, '2 ore', 2),
-  ('f1000001-0001-4000-8000-000000000049', '10-ele-led', 'b1000001-0001-4000-8000-000000000010', 'd1000001-0001-4000-8000-000000000013', 'Illuminazione LED', 55, '1.5 ore', 3),
-  ('f1000001-0001-4000-8000-000000000050', '10-ele-smart', 'b1000001-0001-4000-8000-000000000010', 'd1000001-0001-4000-8000-000000000014', 'Domotica', 120, '2 ore', 4),
-  ('f1000001-0001-4000-8000-000000000051', '10-ele-cert', 'b1000001-0001-4000-8000-000000000010', 'd1000001-0001-4000-8000-000000000015', 'Certificazione impianto', 110, '2 ore', 5),
-  ('f1000001-0001-4000-8000-000000000052', '10-ele-urgent', 'b1000001-0001-4000-8000-000000000010', 'd1000001-0001-4000-8000-000000000016', 'Guasto urgente', 60, '1 ora', 6),
-  ('f1000001-0001-4000-8000-000000000053', '11-ele-point', 'b1000001-0001-4000-8000-000000000011', 'd1000001-0001-4000-8000-000000000011', 'Punto luce e prese', 45, '1 ora', 1),
-  ('f1000001-0001-4000-8000-000000000054', '11-ele-panel', 'b1000001-0001-4000-8000-000000000011', 'd1000001-0001-4000-8000-000000000012', 'Quadro elettrico', 90, '2 ore', 2),
-  ('f1000001-0001-4000-8000-000000000055', '11-ele-led', 'b1000001-0001-4000-8000-000000000011', 'd1000001-0001-4000-8000-000000000013', 'Illuminazione LED', 55, '1.5 ore', 3),
-  ('f1000001-0001-4000-8000-000000000056', '11-ele-smart', 'b1000001-0001-4000-8000-000000000011', 'd1000001-0001-4000-8000-000000000014', 'Domotica', 120, '2 ore', 4),
-  ('f1000001-0001-4000-8000-000000000057', '11-ele-cert', 'b1000001-0001-4000-8000-000000000011', 'd1000001-0001-4000-8000-000000000015', 'Certificazione impianto', 110, '2 ore', 5),
-  ('f1000001-0001-4000-8000-000000000058', '11-ele-urgent', 'b1000001-0001-4000-8000-000000000011', 'd1000001-0001-4000-8000-000000000016', 'Guasto urgente', 60, '1 ora', 6),
-  ('f1000001-0001-4000-8000-000000000059', '12-gia-prune', 'b1000001-0001-4000-8000-000000000012', 'd1000001-0001-4000-8000-000000000017', 'Potatura alberi', 55, '2 ore', 1),
-  ('f1000001-0001-4000-8000-000000000060', '12-gia-maint', 'b1000001-0001-4000-8000-000000000012', 'd1000001-0001-4000-8000-000000000018', 'Manutenzione giardino', 50, '2 ore', 2),
-  ('f1000001-0001-4000-8000-000000000061', '12-gia-grass', 'b1000001-0001-4000-8000-000000000012', 'd1000001-0001-4000-8000-000000000019', 'Erba e siepi', 35, '1.5 ore', 3),
-  ('f1000001-0001-4000-8000-000000000062', '12-gia-terra', 'b1000001-0001-4000-8000-000000000012', 'd1000001-0001-4000-8000-000000000020', 'Terrazzi e balconi', 40, '1.5 ore', 4),
-  ('f1000001-0001-4000-8000-000000000063', '12-gia-irr', 'b1000001-0001-4000-8000-000000000012', 'd1000001-0001-4000-8000-000000000021', 'Irrigazione', 80, '2 ore', 5),
-  ('f1000001-0001-4000-8000-000000000064', '13-gia-prune', 'b1000001-0001-4000-8000-000000000013', 'd1000001-0001-4000-8000-000000000017', 'Potatura alberi', 55, '2 ore', 1),
-  ('f1000001-0001-4000-8000-000000000065', '13-gia-maint', 'b1000001-0001-4000-8000-000000000013', 'd1000001-0001-4000-8000-000000000018', 'Manutenzione giardino', 50, '2 ore', 2),
-  ('f1000001-0001-4000-8000-000000000066', '13-gia-grass', 'b1000001-0001-4000-8000-000000000013', 'd1000001-0001-4000-8000-000000000019', 'Erba e siepi', 35, '1.5 ore', 3),
-  ('f1000001-0001-4000-8000-000000000067', '13-gia-terra', 'b1000001-0001-4000-8000-000000000013', 'd1000001-0001-4000-8000-000000000020', 'Terrazzi e balconi', 40, '1.5 ore', 4),
-  ('f1000001-0001-4000-8000-000000000068', '13-gia-irr', 'b1000001-0001-4000-8000-000000000013', 'd1000001-0001-4000-8000-000000000021', 'Irrigazione', 80, '2 ore', 5),
-  ('f1000001-0001-4000-8000-000000000069', '14-tut-furniture', 'b1000001-0001-4000-8000-000000000014', 'd1000001-0001-4000-8000-000000000022', 'Montaggio mobili', 35, '1.5 ore', 1),
-  ('f1000001-0001-4000-8000-000000000070', '14-tut-fix', 'b1000001-0001-4000-8000-000000000014', 'd1000001-0001-4000-8000-000000000023', 'Riparazioni casa', 40, '1 ora', 2),
-  ('f1000001-0001-4000-8000-000000000071', '14-tut-small', 'b1000001-0001-4000-8000-000000000014', 'd1000001-0001-4000-8000-000000000024', 'Piccoli lavori', 30, '1 ora', 3),
-  ('f1000001-0001-4000-8000-000000000072', '14-tut-paint', 'b1000001-0001-4000-8000-000000000014', 'd1000001-0001-4000-8000-000000000025', 'Tinteggiatura', 70, '3 ore', 4),
-  ('f1000001-0001-4000-8000-000000000073', '14-tut-door', 'b1000001-0001-4000-8000-000000000014', 'd1000001-0001-4000-8000-000000000026', 'Serramenti', 45, '1 ora', 5),
-  ('f1000001-0001-4000-8000-000000000074', '15-tut-furniture', 'b1000001-0001-4000-8000-000000000015', 'd1000001-0001-4000-8000-000000000022', 'Montaggio mobili', 35, '1.5 ore', 1),
-  ('f1000001-0001-4000-8000-000000000075', '15-tut-fix', 'b1000001-0001-4000-8000-000000000015', 'd1000001-0001-4000-8000-000000000023', 'Riparazioni casa', 40, '1 ora', 2),
-  ('f1000001-0001-4000-8000-000000000076', '15-tut-small', 'b1000001-0001-4000-8000-000000000015', 'd1000001-0001-4000-8000-000000000024', 'Piccoli lavori', 30, '1 ora', 3),
-  ('f1000001-0001-4000-8000-000000000077', '15-tut-paint', 'b1000001-0001-4000-8000-000000000015', 'd1000001-0001-4000-8000-000000000025', 'Tinteggiatura', 70, '3 ore', 4),
-  ('f1000001-0001-4000-8000-000000000078', '15-tut-door', 'b1000001-0001-4000-8000-000000000015', 'd1000001-0001-4000-8000-000000000026', 'Serramenti', 45, '1 ora', 5)
+  ('f1000001-0001-4000-8000-000000000022', '5-mob-furniture', 'b1000001-0001-4000-8000-000000000005', 'd1000001-0001-4000-8000-000000000022', 'Montaggio mobili', 35, '1.5 ore', 1),
+  ('f1000001-0001-4000-8000-000000000023', '5-mob-small', 'b1000001-0001-4000-8000-000000000005', 'd1000001-0001-4000-8000-000000000023', 'Fissaggi e mensole', 30, '1 ora', 2),
+  ('f1000001-0001-4000-8000-000000000024', '6-pul-deep', 'b1000001-0001-4000-8000-000000000006', 'd1000001-0001-4000-8000-000000000001', 'Pulizia profonda casa', 45, '2 ore', 1),
+  ('f1000001-0001-4000-8000-000000000025', '6-pul-office', 'b1000001-0001-4000-8000-000000000006', 'd1000001-0001-4000-8000-000000000002', 'Pulizie ufficio', 60, '2 ore', 2),
+  ('f1000001-0001-4000-8000-000000000026', '6-pul-post', 'b1000001-0001-4000-8000-000000000006', 'd1000001-0001-4000-8000-000000000003', 'Post-ristrutturazione', 90, '4 ore', 3),
+  ('f1000001-0001-4000-8000-000000000027', '6-pul-glass', 'b1000001-0001-4000-8000-000000000006', 'd1000001-0001-4000-8000-000000000004', 'Lavaggio vetri', 35, '1.5 ore', 4),
+  ('f1000001-0001-4000-8000-000000000028', '6-pul-sani', 'b1000001-0001-4000-8000-000000000006', 'd1000001-0001-4000-8000-000000000005', 'Sanificazione', 55, '1.5 ore', 5),
+  ('f1000001-0001-4000-8000-000000000029', '7-pul-deep', 'b1000001-0001-4000-8000-000000000007', 'd1000001-0001-4000-8000-000000000001', 'Pulizia profonda casa', 45, '2 ore', 1),
+  ('f1000001-0001-4000-8000-000000000030', '7-pul-office', 'b1000001-0001-4000-8000-000000000007', 'd1000001-0001-4000-8000-000000000002', 'Pulizie ufficio', 60, '2 ore', 2),
+  ('f1000001-0001-4000-8000-000000000031', '7-pul-post', 'b1000001-0001-4000-8000-000000000007', 'd1000001-0001-4000-8000-000000000003', 'Post-ristrutturazione', 90, '4 ore', 3),
+  ('f1000001-0001-4000-8000-000000000032', '7-pul-glass', 'b1000001-0001-4000-8000-000000000007', 'd1000001-0001-4000-8000-000000000004', 'Lavaggio vetri', 35, '1.5 ore', 4),
+  ('f1000001-0001-4000-8000-000000000033', '7-pul-sani', 'b1000001-0001-4000-8000-000000000007', 'd1000001-0001-4000-8000-000000000005', 'Sanificazione', 55, '1.5 ore', 5),
+  ('f1000001-0001-4000-8000-000000000034', '8-idr-leak', 'b1000001-0001-4000-8000-000000000008', 'd1000001-0001-4000-8000-000000000006', 'Perdite e tubature', 40, '1 ora', 1),
+  ('f1000001-0001-4000-8000-000000000035', '8-idr-tap', 'b1000001-0001-4000-8000-000000000008', 'd1000001-0001-4000-8000-000000000007', 'Rubinetteria', 50, '1 ora', 2),
+  ('f1000001-0001-4000-8000-000000000036', '8-idr-boiler', 'b1000001-0001-4000-8000-000000000008', 'd1000001-0001-4000-8000-000000000008', 'Caldaia e boiler', 70, '1.5 ore', 3),
+  ('f1000001-0001-4000-8000-000000000037', '8-idr-drain', 'b1000001-0001-4000-8000-000000000008', 'd1000001-0001-4000-8000-000000000009', 'Scarichi otturati', 45, '1 ora', 4),
+  ('f1000001-0001-4000-8000-000000000038', '8-idr-install', 'b1000001-0001-4000-8000-000000000008', 'd1000001-0001-4000-8000-000000000010', 'Installazioni', 65, '1.5 ore', 5),
+  ('f1000001-0001-4000-8000-000000000039', '9-idr-leak', 'b1000001-0001-4000-8000-000000000009', 'd1000001-0001-4000-8000-000000000006', 'Perdite e tubature', 40, '1 ora', 1),
+  ('f1000001-0001-4000-8000-000000000040', '9-idr-tap', 'b1000001-0001-4000-8000-000000000009', 'd1000001-0001-4000-8000-000000000007', 'Rubinetteria', 50, '1 ora', 2),
+  ('f1000001-0001-4000-8000-000000000041', '9-idr-boiler', 'b1000001-0001-4000-8000-000000000009', 'd1000001-0001-4000-8000-000000000008', 'Caldaia e boiler', 70, '1.5 ore', 3),
+  ('f1000001-0001-4000-8000-000000000042', '9-idr-drain', 'b1000001-0001-4000-8000-000000000009', 'd1000001-0001-4000-8000-000000000009', 'Scarichi otturati', 45, '1 ora', 4),
+  ('f1000001-0001-4000-8000-000000000043', '9-idr-install', 'b1000001-0001-4000-8000-000000000009', 'd1000001-0001-4000-8000-000000000010', 'Installazioni', 65, '1.5 ore', 5),
+  ('f1000001-0001-4000-8000-000000000044', '10-ele-point', 'b1000001-0001-4000-8000-000000000010', 'd1000001-0001-4000-8000-000000000011', 'Punto luce e prese', 45, '1 ora', 1),
+  ('f1000001-0001-4000-8000-000000000045', '10-ele-panel', 'b1000001-0001-4000-8000-000000000010', 'd1000001-0001-4000-8000-000000000012', 'Quadro elettrico', 90, '2 ore', 2),
+  ('f1000001-0001-4000-8000-000000000046', '10-ele-led', 'b1000001-0001-4000-8000-000000000010', 'd1000001-0001-4000-8000-000000000013', 'Illuminazione LED', 55, '1.5 ore', 3),
+  ('f1000001-0001-4000-8000-000000000047', '10-ele-smart', 'b1000001-0001-4000-8000-000000000010', 'd1000001-0001-4000-8000-000000000014', 'Domotica', 120, '2 ore', 4),
+  ('f1000001-0001-4000-8000-000000000048', '10-ele-cert', 'b1000001-0001-4000-8000-000000000010', 'd1000001-0001-4000-8000-000000000015', 'Certificazione impianto', 110, '2 ore', 5),
+  ('f1000001-0001-4000-8000-000000000049', '10-ele-urgent', 'b1000001-0001-4000-8000-000000000010', 'd1000001-0001-4000-8000-000000000016', 'Guasto urgente', 60, '1 ora', 6),
+  ('f1000001-0001-4000-8000-000000000050', '11-ele-point', 'b1000001-0001-4000-8000-000000000011', 'd1000001-0001-4000-8000-000000000011', 'Punto luce e prese', 45, '1 ora', 1),
+  ('f1000001-0001-4000-8000-000000000051', '11-ele-panel', 'b1000001-0001-4000-8000-000000000011', 'd1000001-0001-4000-8000-000000000012', 'Quadro elettrico', 90, '2 ore', 2),
+  ('f1000001-0001-4000-8000-000000000052', '11-ele-led', 'b1000001-0001-4000-8000-000000000011', 'd1000001-0001-4000-8000-000000000013', 'Illuminazione LED', 55, '1.5 ore', 3),
+  ('f1000001-0001-4000-8000-000000000053', '11-ele-smart', 'b1000001-0001-4000-8000-000000000011', 'd1000001-0001-4000-8000-000000000014', 'Domotica', 120, '2 ore', 4),
+  ('f1000001-0001-4000-8000-000000000054', '11-ele-cert', 'b1000001-0001-4000-8000-000000000011', 'd1000001-0001-4000-8000-000000000015', 'Certificazione impianto', 110, '2 ore', 5),
+  ('f1000001-0001-4000-8000-000000000055', '11-ele-urgent', 'b1000001-0001-4000-8000-000000000011', 'd1000001-0001-4000-8000-000000000016', 'Guasto urgente', 60, '1 ora', 6),
+  ('f1000001-0001-4000-8000-000000000056', '12-gia-prune', 'b1000001-0001-4000-8000-000000000012', 'd1000001-0001-4000-8000-000000000017', 'Potatura alberi', 55, '2 ore', 1),
+  ('f1000001-0001-4000-8000-000000000057', '12-gia-maint', 'b1000001-0001-4000-8000-000000000012', 'd1000001-0001-4000-8000-000000000018', 'Manutenzione giardino', 50, '2 ore', 2),
+  ('f1000001-0001-4000-8000-000000000058', '12-gia-grass', 'b1000001-0001-4000-8000-000000000012', 'd1000001-0001-4000-8000-000000000019', 'Erba e siepi', 35, '1.5 ore', 3),
+  ('f1000001-0001-4000-8000-000000000059', '12-gia-terra', 'b1000001-0001-4000-8000-000000000012', 'd1000001-0001-4000-8000-000000000020', 'Terrazzi e balconi', 40, '1.5 ore', 4),
+  ('f1000001-0001-4000-8000-000000000060', '12-gia-irr', 'b1000001-0001-4000-8000-000000000012', 'd1000001-0001-4000-8000-000000000021', 'Irrigazione', 80, '2 ore', 5),
+  ('f1000001-0001-4000-8000-000000000061', '13-gia-prune', 'b1000001-0001-4000-8000-000000000013', 'd1000001-0001-4000-8000-000000000017', 'Potatura alberi', 55, '2 ore', 1),
+  ('f1000001-0001-4000-8000-000000000062', '13-gia-maint', 'b1000001-0001-4000-8000-000000000013', 'd1000001-0001-4000-8000-000000000018', 'Manutenzione giardino', 50, '2 ore', 2),
+  ('f1000001-0001-4000-8000-000000000063', '13-gia-grass', 'b1000001-0001-4000-8000-000000000013', 'd1000001-0001-4000-8000-000000000019', 'Erba e siepi', 35, '1.5 ore', 3),
+  ('f1000001-0001-4000-8000-000000000064', '13-gia-terra', 'b1000001-0001-4000-8000-000000000013', 'd1000001-0001-4000-8000-000000000020', 'Terrazzi e balconi', 40, '1.5 ore', 4),
+  ('f1000001-0001-4000-8000-000000000065', '13-gia-irr', 'b1000001-0001-4000-8000-000000000013', 'd1000001-0001-4000-8000-000000000021', 'Irrigazione', 80, '2 ore', 5),
+  ('f1000001-0001-4000-8000-000000000066', '14-mob-furniture', 'b1000001-0001-4000-8000-000000000014', 'd1000001-0001-4000-8000-000000000022', 'Montaggio mobili', 35, '1.5 ore', 1),
+  ('f1000001-0001-4000-8000-000000000067', '14-mob-small', 'b1000001-0001-4000-8000-000000000014', 'd1000001-0001-4000-8000-000000000023', 'Fissaggi e mensole', 30, '1 ora', 2),
+  ('f1000001-0001-4000-8000-000000000068', '15-imb-paint', 'b1000001-0001-4000-8000-000000000015', 'd1000001-0001-4000-8000-000000000026', 'Tinteggiatura interni', 70, '3 ore', 1),
+  ('f1000001-0001-4000-8000-000000000069', '15-imb-ext', 'b1000001-0001-4000-8000-000000000015', 'd1000001-0001-4000-8000-000000000027', 'Pittura esterni', 120, '4 ore', 2)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO professional_service_packages (id, legacy_id, professional_id, professional_service_id, tier, title, description, price, duration_label, sort_order) VALUES
@@ -363,8 +470,8 @@ INSERT INTO professional_service_packages (id, legacy_id, professional_id, profe
   ('ab000001-0001-4000-8000-000000000011', '4-p2', 'b1000001-0001-4000-8000-000000000004', NULL, 'standard', 'Standard', 'Potatura professionale alberi', 100, '4 ore', 2),
   ('ab000001-0001-4000-8000-000000000012', '4-p3', 'b1000001-0001-4000-8000-000000000004', NULL, 'premium', 'Premium', 'Consulenza e impianto verde completo', 200, '8 ore', 3),
   ('ab000001-0001-4000-8000-000000000013', '5-p1', 'b1000001-0001-4000-8000-000000000005', NULL, 'base', 'Base', 'Montaggio mobili singolo', 50, '2 ore', 1),
-  ('ab000001-0001-4000-8000-000000000014', '5-p2', 'b1000001-0001-4000-8000-000000000005', NULL, 'standard', 'Standard', 'Riparazioni domestiche multiple', 65, '2 ore', 2),
-  ('ab000001-0001-4000-8000-000000000015', '5-p3', 'b1000001-0001-4000-8000-000000000005', NULL, 'premium', 'Premium', 'Pittura stanza fino a 15mq', 150, '6 ore', 3),
+  ('ab000001-0001-4000-8000-000000000014', '5-p2', 'b1000001-0001-4000-8000-000000000005', NULL, 'standard', 'Standard', 'Camera completa', 75, '3 ore', 2),
+  ('ab000001-0001-4000-8000-000000000015', '5-p3', 'b1000001-0001-4000-8000-000000000005', NULL, 'premium', 'Premium', 'Cucina completa', 150, '6 ore', 3),
   ('ab000001-0001-4000-8000-000000000016', '6-p1', 'b1000001-0001-4000-8000-000000000006', NULL, 'base', 'Base', 'Pulizia ufficio fino a 80mq', 60, '3 ore', 1),
   ('ab000001-0001-4000-8000-000000000017', '6-p2', 'b1000001-0001-4000-8000-000000000006', NULL, 'standard', 'Standard', 'Pulizia settimanale 4 sessioni', 160, '8 ore', 2),
   ('ab000001-0001-4000-8000-000000000018', '6-p3', 'b1000001-0001-4000-8000-000000000006', NULL, 'premium', 'Premium', 'Sanificazione antibatterica completa', 95, '3 ore', 3),
@@ -390,11 +497,11 @@ INSERT INTO professional_service_packages (id, legacy_id, professional_id, profe
   ('ab000001-0001-4000-8000-000000000038', '13-p2', 'b1000001-0001-4000-8000-000000000013', NULL, 'standard', 'Standard', 'Potatura alberi', 110, '4 ore', 2),
   ('ab000001-0001-4000-8000-000000000039', '13-p3', 'b1000001-0001-4000-8000-000000000013', NULL, 'premium', 'Premium', 'Nuovo impianto verde', 250, '10 ore', 3),
   ('ab000001-0001-4000-8000-000000000040', '14-p1', 'b1000001-0001-4000-8000-000000000014', NULL, 'base', 'Base', 'Montaggio mobili', 45, '2 ore', 1),
-  ('ab000001-0001-4000-8000-000000000041', '14-p2', 'b1000001-0001-4000-8000-000000000014', NULL, 'standard', 'Standard', 'Riparazioni varie', 60, '2 ore', 2),
-  ('ab000001-0001-4000-8000-000000000042', '14-p3', 'b1000001-0001-4000-8000-000000000014', NULL, 'premium', 'Premium', 'Pittura interna', 140, '6 ore', 3),
-  ('ab000001-0001-4000-8000-000000000043', '15-p1', 'b1000001-0001-4000-8000-000000000015', NULL, 'base', 'Base', 'Fissaggi a muro', 35, '1 ora', 1),
-  ('ab000001-0001-4000-8000-000000000044', '15-p2', 'b1000001-0001-4000-8000-000000000015', NULL, 'standard', 'Standard', 'Montaggio armadi', 70, '3 ore', 2),
-  ('ab000001-0001-4000-8000-000000000045', '15-p3', 'b1000001-0001-4000-8000-000000000015', NULL, 'premium', 'Premium', 'Lavori multipli', 120, '5 ore', 3)
+  ('ab000001-0001-4000-8000-000000000041', '14-p2', 'b1000001-0001-4000-8000-000000000014', NULL, 'standard', 'Standard', 'Camera completa', 75, '3 ore', 2),
+  ('ab000001-0001-4000-8000-000000000042', '14-p3', 'b1000001-0001-4000-8000-000000000014', NULL, 'premium', 'Premium', 'Cucina IKEA', 140, '6 ore', 3),
+  ('ab000001-0001-4000-8000-000000000043', '15-p1', 'b1000001-0001-4000-8000-000000000015', NULL, 'base', 'Base', 'Singola parete', 70, '3 ore', 1),
+  ('ab000001-0001-4000-8000-000000000044', '15-p2', 'b1000001-0001-4000-8000-000000000015', NULL, 'standard', 'Standard', 'Stanza intera', 150, '6 ore', 2),
+  ('ab000001-0001-4000-8000-000000000045', '15-p3', 'b1000001-0001-4000-8000-000000000015', NULL, 'premium', 'Premium', 'Appartamento', 280, '10 ore', 3)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO professional_portfolio (id, legacy_id, professional_id, title, subtitle, category, cover_image, before_image, after_image, sort_order) VALUES
@@ -410,8 +517,8 @@ INSERT INTO professional_portfolio (id, legacy_id, professional_id, title, subti
   ('ac000001-0001-4000-8000-000000000006', '3-pf2', 'b1000001-0001-4000-8000-000000000003', 'Dettaglio intervento', 'Porta Nuova', 'Elettricista', 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=900&h=600&fit=crop', NULL, NULL, 2),
   ('ac000001-0001-4000-8000-000000000007', '4-pf1', 'b1000001-0001-4000-8000-000000000004', 'Lavoro Giardiniere', 'Porta Romana', 'Giardiniere', 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800&h=600&fit=crop', NULL, NULL, 1),
   ('ac000001-0001-4000-8000-000000000008', '4-pf2', 'b1000001-0001-4000-8000-000000000004', 'Dettaglio intervento', 'Navigli', 'Giardiniere', 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=900&h=600&fit=crop', NULL, NULL, 2),
-  ('ac000001-0001-4000-8000-000000000009', '5-pf1', 'b1000001-0001-4000-8000-000000000005', 'Lavoro Tuttofare', 'Centro', 'Tuttofare', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&h=600&fit=crop', NULL, NULL, 1),
-  ('ac000001-0001-4000-8000-000000000010', '5-pf2', 'b1000001-0001-4000-8000-000000000005', 'Dettaglio intervento', 'Lambrate', 'Tuttofare', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=900&h=600&fit=crop', NULL, NULL, 2),
+  ('ac000001-0001-4000-8000-000000000009', '5-pf1', 'b1000001-0001-4000-8000-000000000005', 'Lavoro Montaggio mobili', 'Centro', 'Montaggio mobili', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&h=600&fit=crop', NULL, NULL, 1),
+  ('ac000001-0001-4000-8000-000000000010', '5-pf2', 'b1000001-0001-4000-8000-000000000005', 'Dettaglio intervento', 'Lambrate', 'Montaggio mobili', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=900&h=600&fit=crop', NULL, NULL, 2),
   ('ac000001-0001-4000-8000-000000000011', '6-pf1', 'b1000001-0001-4000-8000-000000000006', 'Lavoro Pulizie', 'Centro', 'Pulizie', 'https://images.unsplash.com/photo-1527515637462-cff94eecc458?w=800&h=600&fit=crop', NULL, NULL, 1),
   ('ac000001-0001-4000-8000-000000000012', '6-pf2', 'b1000001-0001-4000-8000-000000000006', 'Dettaglio intervento', 'Isola', 'Pulizie', 'https://images.unsplash.com/photo-1527515637462-cff94eecc458?w=900&h=600&fit=crop', NULL, NULL, 2),
   ('ac000001-0001-4000-8000-000000000013', '7-pf1', 'b1000001-0001-4000-8000-000000000007', 'Lavoro Pulizie', 'Centro', 'Pulizie', 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&h=600&fit=crop', NULL, NULL, 1),
@@ -428,10 +535,10 @@ INSERT INTO professional_portfolio (id, legacy_id, professional_id, title, subti
   ('ac000001-0001-4000-8000-000000000024', '12-pf2', 'b1000001-0001-4000-8000-000000000012', 'Dettaglio intervento', 'Navigli', 'Giardiniere', 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=900&h=600&fit=crop', NULL, NULL, 2),
   ('ac000001-0001-4000-8000-000000000025', '13-pf1', 'b1000001-0001-4000-8000-000000000013', 'Lavoro Giardiniere', 'Porta Romana', 'Giardiniere', 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800&h=600&fit=crop', NULL, NULL, 1),
   ('ac000001-0001-4000-8000-000000000026', '13-pf2', 'b1000001-0001-4000-8000-000000000013', 'Dettaglio intervento', 'Navigli', 'Giardiniere', 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=900&h=600&fit=crop', NULL, NULL, 2),
-  ('ac000001-0001-4000-8000-000000000027', '14-pf1', 'b1000001-0001-4000-8000-000000000014', 'Lavoro Tuttofare', 'Centro', 'Tuttofare', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&h=600&fit=crop', NULL, NULL, 1),
-  ('ac000001-0001-4000-8000-000000000028', '14-pf2', 'b1000001-0001-4000-8000-000000000014', 'Dettaglio intervento', 'Lambrate', 'Tuttofare', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=900&h=600&fit=crop', NULL, NULL, 2),
-  ('ac000001-0001-4000-8000-000000000029', '15-pf1', 'b1000001-0001-4000-8000-000000000015', 'Lavoro Tuttofare', 'Centro', 'Tuttofare', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&h=600&fit=crop', NULL, NULL, 1),
-  ('ac000001-0001-4000-8000-000000000030', '15-pf2', 'b1000001-0001-4000-8000-000000000015', 'Dettaglio intervento', 'Lambrate', 'Tuttofare', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=900&h=600&fit=crop', NULL, NULL, 2)
+  ('ac000001-0001-4000-8000-000000000027', '14-pf1', 'b1000001-0001-4000-8000-000000000014', 'Lavoro Montaggio mobili', 'Centro', 'Montaggio mobili', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&h=600&fit=crop', NULL, NULL, 1),
+  ('ac000001-0001-4000-8000-000000000028', '14-pf2', 'b1000001-0001-4000-8000-000000000014', 'Dettaglio intervento', 'Lambrate', 'Montaggio mobili', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=900&h=600&fit=crop', NULL, NULL, 2),
+  ('ac000001-0001-4000-8000-000000000029', '15-pf1', 'b1000001-0001-4000-8000-000000000015', 'Lavoro Imbianchini', 'Centro', 'Imbianchini', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&h=600&fit=crop', NULL, NULL, 1),
+  ('ac000001-0001-4000-8000-000000000030', '15-pf2', 'b1000001-0001-4000-8000-000000000015', 'Dettaglio intervento', 'Brera', 'Imbianchini', 'https://images.unsplash.com/photo-1562259949-e8e7689d4713?w=900&h=600&fit=crop', NULL, NULL, 2)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO professional_availability (professional_id, day_of_week, short_label, day_label, time_ranges, status) VALUES
@@ -462,7 +569,7 @@ INSERT INTO home_popular_services (id, legacy_id, category_id, title, icon, rati
   ('ba000002-0001-4000-8000-000000000002', 'ps2', 'c1000001-0001-4000-8000-000000000002', 'Idraulico', 'water-outline', 4.8, 1960, 45, 'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=400&h=300&fit=crop', 2),
   ('ba000002-0001-4000-8000-000000000003', 'ps3', 'c1000001-0001-4000-8000-000000000003', 'Elettricista', 'flash-outline', 4.9, 1720, 55, 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=400&h=300&fit=crop', 3),
   ('ba000002-0001-4000-8000-000000000004', 'ps4', 'c1000001-0001-4000-8000-000000000004', 'Giardiniere', 'leaf-outline', 4.8, 980, 29, 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&h=300&fit=crop', 4),
-  ('ba000002-0001-4000-8000-000000000005', 'ps5', 'c1000001-0001-4000-8000-000000000005', 'Tuttofare', 'construct-outline', 4.7, 1540, 35, 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400&h=300&fit=crop', 5)
+  ('ba000002-0001-4000-8000-000000000005', 'ps5', 'c1000001-0001-4000-8000-000000000011', 'Montaggio mobili', 'cube-outline', 4.7, 1540, 35, 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400&h=300&fit=crop&fm=webp', 5)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO home_offers (id, legacy_id, category_id, title, highlight, subtitle, sort_order) VALUES
@@ -478,28 +585,28 @@ INSERT INTO home_service_tiles (id, legacy_id, audience, title, icon, category_s
   ('b7000001-0001-4000-8000-000000000003', 'c3', 'casa', 'Scarichi otturati', 'funnel-outline', 'idraulici', 3),
   ('b7000001-0001-4000-8000-000000000004', 'c4', 'casa', 'Impianti luce', 'bulb-outline', 'elettricisti', 4),
   ('b7000001-0001-4000-8000-000000000005', 'c5', 'casa', 'Cura giardino', 'leaf-outline', 'giardinieri', 5),
-  ('b7000001-0001-4000-8000-000000000006', 'c6', 'casa', 'Montaggio mobili', 'hammer-outline', 'tuttofare', 6),
-  ('b7000001-0001-4000-8000-000000000007', 'c7', 'casa', 'Imbiancatura', 'color-palette-outline', 'tuttofare', 7),
-  ('b7000001-0001-4000-8000-000000000008', 'c8', 'casa', 'Serrature', 'key-outline', 'tuttofare', 8),
-  ('b7000001-0001-4000-8000-000000000009', 'c9', 'casa', 'Climatizzatori', 'snow-outline', 'elettricisti', 9),
-  ('b7000001-0001-4000-8000-000000000010', 'c10', 'casa', 'Traslochi', 'car-outline', 'tuttofare', 10),
+  ('b7000001-0001-4000-8000-000000000006', 'c6', 'casa', 'Montaggio mobili', 'hammer-outline', 'montaggio-mobili', 6),
+  ('b7000001-0001-4000-8000-000000000007', 'c7', 'casa', 'Imbiancatura', 'color-palette-outline', 'imbianchini', 7),
+  ('b7000001-0001-4000-8000-000000000008', 'c8', 'casa', 'Serrature', 'key-outline', 'fabbri', 8),
+  ('b7000001-0001-4000-8000-000000000009', 'c9', 'casa', 'Climatizzatori', 'snow-outline', 'tecnici-caldaie-condizionatori', 9),
+  ('b7000001-0001-4000-8000-000000000010', 'c10', 'casa', 'Traslochi', 'car-outline', 'traslochi-sgomberi', 10),
   ('b7000001-0001-4000-8000-000000000011', 'a1', 'azienda', 'Pulizie uffici', 'business-outline', 'pulizie', 1),
   ('b7000001-0001-4000-8000-000000000012', 'a2', 'azienda', 'Sanificazione', 'shield-checkmark-outline', 'pulizie', 2),
   ('b7000001-0001-4000-8000-000000000013', 'a3', 'azienda', 'Videosorveglianza', 'videocam-outline', 'elettricisti', 3),
   ('b7000001-0001-4000-8000-000000000014', 'a4', 'azienda', 'Antincendio', 'flame-outline', 'elettricisti', 4),
   ('b7000001-0001-4000-8000-000000000015', 'a5', 'azienda', 'Impianti elettrici', 'flash-outline', 'elettricisti', 5),
   ('b7000001-0001-4000-8000-000000000016', 'a6', 'azienda', 'Cablaggio rete', 'git-network-outline', 'elettricisti', 6),
-  ('b7000001-0001-4000-8000-000000000017', 'a7', 'azienda', 'Condizionatori', 'snow-outline', 'elettricisti', 7),
-  ('b7000001-0001-4000-8000-000000000018', 'a8', 'azienda', 'Facchinaggio', 'cube-outline', 'tuttofare', 8),
-  ('b7000001-0001-4000-8000-000000000019', 'a9', 'azienda', 'Facility management', 'settings-outline', 'tuttofare', 9),
-  ('b7000001-0001-4000-8000-000000000020', 'a10', 'azienda', 'Manutenzione impianti', 'build-outline', 'tuttofare', 10)
+  ('b7000001-0001-4000-8000-000000000017', 'a7', 'azienda', 'Condizionatori', 'snow-outline', 'tecnici-caldaie-condizionatori', 7),
+  ('b7000001-0001-4000-8000-000000000018', 'a8', 'azienda', 'Facchinaggio', 'cube-outline', 'traslochi-sgomberi', 8),
+  ('b7000001-0001-4000-8000-000000000019', 'a9', 'azienda', 'Facility management', 'settings-outline', 'pulizie', 9),
+  ('b7000001-0001-4000-8000-000000000020', 'a10', 'azienda', 'Manutenzione impianti', 'build-outline', 'tecnici-caldaie-condizionatori', 10)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO reviews (id, legacy_id, professional_id, customer_id, rating, body, service_title, client_display_name, review_date) VALUES
   ('b9000001-0001-4000-8000-000000000001', 'r1', 'b1000001-0001-4000-8000-000000000001', NULL, 5, 'Precisa, puntuale e professionale.', 'Pulizie domestiche', 'Giulia M.', '2026-06-01'),
   ('b9000001-0001-4000-8000-000000000002', 'r2', 'b1000001-0001-4000-8000-000000000002', NULL, 5, 'Intervento rapido, problema risolto in un''ora.', 'Idraulico', 'Marco T.', '2026-06-01'),
   ('b9000001-0001-4000-8000-000000000003', 'r3', 'b1000001-0001-4000-8000-000000000012', NULL, 5, 'Giardino impeccabile, consigli utili sulla manutenzione.', 'Giardinaggio', 'Elena R.', '2026-06-01'),
-  ('b9000001-0001-4000-8000-000000000004', 'r4', 'b1000001-0001-4000-8000-000000000005', NULL, 5, 'Montaggio perfetto e area lasciata pulita.', 'Tuttofare', 'Andrea P.', '2026-06-01'),
+  ('b9000001-0001-4000-8000-000000000004', 'r4', 'b1000001-0001-4000-8000-000000000005', NULL, 5, 'Montaggio perfetto e area lasciata pulita.', 'Montaggio mobili', 'Andrea P.', '2026-06-01'),
   ('b9000001-0001-4000-8000-000000000005', '1-rev1', 'b1000001-0001-4000-8000-000000000001', 'a1000001-0001-4000-8000-000000000002', 5, 'Puntuale e preciso, consigliatissimo.', 'Pulizie', NULL, '2026-05-11'),
   ('b9000001-0001-4000-8000-000000000006', '1-rev2', 'b1000001-0001-4000-8000-000000000001', 'a1000001-0001-4000-8000-000000000003', 4, 'Ottimo rapporto qualità-prezzo.', 'Pulizie', NULL, '2026-05-11'),
   ('b9000001-0001-4000-8000-000000000007', '2-rev1', 'b1000001-0001-4000-8000-000000000002', 'a1000001-0001-4000-8000-000000000003', 4, 'Ottimo rapporto qualità-prezzo.', 'Idraulico', NULL, '2026-05-12'),
@@ -508,8 +615,8 @@ INSERT INTO reviews (id, legacy_id, professional_id, customer_id, rating, body, 
   ('b9000001-0001-4000-8000-000000000010', '3-rev2', 'b1000001-0001-4000-8000-000000000003', 'a1000001-0001-4000-8000-000000000005', 4, 'Disponibile e competente.', 'Elettricista', NULL, '2026-05-13'),
   ('b9000001-0001-4000-8000-000000000011', '4-rev1', 'b1000001-0001-4000-8000-000000000004', 'a1000001-0001-4000-8000-000000000005', 4, 'Disponibile e competente.', 'Giardiniere', NULL, '2026-05-14'),
   ('b9000001-0001-4000-8000-000000000012', '4-rev2', 'b1000001-0001-4000-8000-000000000004', 'a1000001-0001-4000-8000-000000000006', 5, 'Servizio eccellente, molto professionale.', 'Giardiniere', NULL, '2026-05-14'),
-  ('b9000001-0001-4000-8000-000000000013', '5-rev1', 'b1000001-0001-4000-8000-000000000005', 'a1000001-0001-4000-8000-000000000006', 5, 'Servizio eccellente, molto professionale.', 'Tuttofare', NULL, '2026-05-15'),
-  ('b9000001-0001-4000-8000-000000000014', '5-rev2', 'b1000001-0001-4000-8000-000000000005', 'a1000001-0001-4000-8000-000000000007', 5, 'Puntuale e preciso, consigliatissimo.', 'Tuttofare', NULL, '2026-05-15'),
+  ('b9000001-0001-4000-8000-000000000013', '5-rev1', 'b1000001-0001-4000-8000-000000000005', 'a1000001-0001-4000-8000-000000000006', 5, 'Servizio eccellente, molto professionale.', 'Montaggio mobili', NULL, '2026-05-15'),
+  ('b9000001-0001-4000-8000-000000000014', '5-rev2', 'b1000001-0001-4000-8000-000000000005', 'a1000001-0001-4000-8000-000000000007', 5, 'Puntuale e preciso, consigliatissimo.', 'Montaggio mobili', NULL, '2026-05-15'),
   ('b9000001-0001-4000-8000-000000000015', '6-rev1', 'b1000001-0001-4000-8000-000000000006', 'a1000001-0001-4000-8000-000000000007', 5, 'Puntuale e preciso, consigliatissimo.', 'Pulizie', NULL, '2026-05-16'),
   ('b9000001-0001-4000-8000-000000000016', '6-rev2', 'b1000001-0001-4000-8000-000000000006', 'a1000001-0001-4000-8000-000000000008', 4, 'Ottimo rapporto qualità-prezzo.', 'Pulizie', NULL, '2026-05-16'),
   ('b9000001-0001-4000-8000-000000000017', '7-rev1', 'b1000001-0001-4000-8000-000000000007', 'a1000001-0001-4000-8000-000000000008', 4, 'Ottimo rapporto qualità-prezzo.', 'Pulizie', NULL, '2026-05-17'),
@@ -526,10 +633,10 @@ INSERT INTO reviews (id, legacy_id, professional_id, customer_id, rating, body, 
   ('b9000001-0001-4000-8000-000000000028', '12-rev2', 'b1000001-0001-4000-8000-000000000012', 'a1000001-0001-4000-8000-000000000006', 5, 'Lavoro accurato e area lasciata pulita.', 'Giardiniere', NULL, '2026-05-22'),
   ('b9000001-0001-4000-8000-000000000029', '13-rev1', 'b1000001-0001-4000-8000-000000000013', 'a1000001-0001-4000-8000-000000000006', 5, 'Lavoro accurato e area lasciata pulita.', 'Giardiniere', NULL, '2026-05-23'),
   ('b9000001-0001-4000-8000-000000000030', '13-rev2', 'b1000001-0001-4000-8000-000000000013', 'a1000001-0001-4000-8000-000000000007', 4, 'Disponibile e competente.', 'Giardiniere', NULL, '2026-05-23'),
-  ('b9000001-0001-4000-8000-000000000031', '14-rev1', 'b1000001-0001-4000-8000-000000000014', 'a1000001-0001-4000-8000-000000000007', 4, 'Disponibile e competente.', 'Tuttofare', NULL, '2026-05-24'),
-  ('b9000001-0001-4000-8000-000000000032', '14-rev2', 'b1000001-0001-4000-8000-000000000014', 'a1000001-0001-4000-8000-000000000008', 5, 'Servizio eccellente, molto professionale.', 'Tuttofare', NULL, '2026-05-24'),
-  ('b9000001-0001-4000-8000-000000000033', '15-rev1', 'b1000001-0001-4000-8000-000000000015', 'a1000001-0001-4000-8000-000000000008', 5, 'Servizio eccellente, molto professionale.', 'Tuttofare', NULL, '2026-05-25'),
-  ('b9000001-0001-4000-8000-000000000034', '15-rev2', 'b1000001-0001-4000-8000-000000000015', 'a1000001-0001-4000-8000-000000000001', 5, 'Puntuale e preciso, consigliatissimo.', 'Tuttofare', NULL, '2026-05-25'),
+  ('b9000001-0001-4000-8000-000000000031', '14-rev1', 'b1000001-0001-4000-8000-000000000014', 'a1000001-0001-4000-8000-000000000007', 4, 'Disponibile e competente.', 'Montaggio mobili', NULL, '2026-05-24'),
+  ('b9000001-0001-4000-8000-000000000032', '14-rev2', 'b1000001-0001-4000-8000-000000000014', 'a1000001-0001-4000-8000-000000000008', 5, 'Servizio eccellente, molto professionale.', 'Montaggio mobili', NULL, '2026-05-24'),
+  ('b9000001-0001-4000-8000-000000000033', '15-rev1', 'b1000001-0001-4000-8000-000000000015', 'a1000001-0001-4000-8000-000000000008', 5, 'Servizio eccellente, molto professionale.', 'Imbianchini', NULL, '2026-05-25'),
+  ('b9000001-0001-4000-8000-000000000034', '15-rev2', 'b1000001-0001-4000-8000-000000000015', 'a1000001-0001-4000-8000-000000000001', 5, 'Puntuale e preciso, consigliatissimo.', 'Imbianchini', NULL, '2026-05-25'),
   ('b9000001-0001-4000-8000-000000000101', 'r1-pro', 'b1000001-0001-4000-8000-000000000001', 'a1000001-0001-4000-8000-000000000001', 5, 'Puntualissima e molto accurata. Appartamento impeccabile.', 'Pulizia profonda', NULL, '2026-06-03'),
   ('b9000001-0001-4000-8000-000000000102', 'r2-pro', 'b1000001-0001-4000-8000-000000000001', 'a1000001-0001-4000-8000-000000000002', 5, 'Professionalità top, consigliatissima per uffici.', 'Pulizia ufficio', NULL, '2026-05-28'),
   ('b9000001-0001-4000-8000-000000000103', 'r3-pro', 'b1000001-0001-4000-8000-000000000001', 'a1000001-0001-4000-8000-000000000003', 4, 'Ottimo lavoro post-cantiere, tempi rispettati.', 'Post-ristrutturazione', NULL, '2026-05-20')
@@ -567,7 +674,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO bookings (id, legacy_id, customer_id, professional_id, booking_request_id, service_title, category_label, scheduled_date, scheduled_time, end_time, status, appointment_status, price, address, zone, note) VALUES
   ('b0000001-0001-4000-8000-000000000001', 'b1', 'a1000001-0001-4000-8000-000000000001', 'b1000001-0001-4000-8000-000000000001', NULL, 'Pulizia casa', 'Pulizie', '2024-06-12', '10:00', NULL, 'confirmed', NULL, 85, 'Via Roma 12, Milano', NULL, 'Piano secondo, citofono Bianchi.'),
   ('b0000001-0001-4000-8000-000000000002', 'b2', 'a1000001-0001-4000-8000-000000000001', 'b1000001-0001-4000-8000-000000000002', NULL, 'Riparazione perdita', 'Idraulico', '2024-06-08', '14:30', NULL, 'incoming', NULL, 60, 'Corso Garibaldi 45, Milano', NULL, NULL),
-  ('b0000001-0001-4000-8000-000000000003', 'b3', 'a1000001-0001-4000-8000-000000000001', 'b1000001-0001-4000-8000-000000000005', NULL, 'Montaggio mobili', 'Tuttofare', '2024-05-28', '09:00', NULL, 'completed', NULL, 50, 'Viale Monza 88, Milano', NULL, NULL),
+  ('b0000001-0001-4000-8000-000000000003', 'b3', 'a1000001-0001-4000-8000-000000000001', 'b1000001-0001-4000-8000-000000000005', NULL, 'Montaggio mobili', 'Montaggio mobili', '2024-05-28', '09:00', NULL, 'completed', NULL, 50, 'Viale Monza 88, Milano', NULL, NULL),
   ('b0000001-0001-4000-8000-000000000004', 'b4', 'a1000001-0001-4000-8000-000000000001', 'b1000001-0001-4000-8000-000000000003', NULL, 'Punto luce', 'Elettricista', '2024-05-15', '11:00', NULL, 'completed', NULL, 55, 'Piazza Duomo 3, Milano', NULL, NULL),
   ('b0000001-0001-4000-8000-000000000005', 'apt-1', 'a1000001-0001-4000-8000-000000000003', 'b1000001-0001-4000-8000-000000000001', 'af000001-0001-4000-8000-000000000004', 'Pulizia ufficio', 'Pulizie', '2026-06-09', '08:00', '11:00', 'confirmed', 'in_progress', 120, 'Viale Monza 88', 'Lambrate', NULL),
   ('b0000001-0001-4000-8000-000000000006', 'apt-2', 'a1000001-0001-4000-8000-000000000005', 'b1000001-0001-4000-8000-000000000001', NULL, 'Pulizia profonda 60 mq', 'Pulizie', '2026-06-09', '14:00', '17:00', 'confirmed', 'upcoming', 95, 'Piazza Duomo 3', 'Centro', NULL),

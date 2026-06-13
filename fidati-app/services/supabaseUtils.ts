@@ -19,7 +19,7 @@ export async function withMockFallback<T>(
     return fallback;
   }
 
-  logQueryStart(meta);
+  const queryId = logQueryStart(meta);
 
   try {
     const result = await fetcher();
@@ -37,13 +37,41 @@ export async function withMockFallback<T>(
     }
 
     const count = Array.isArray(result) ? result.length : 1;
-    logQuerySuccess(meta, count);
+    logQuerySuccess(meta, count, queryId);
     registerHomeFetch(meta.table, 'db');
     return result;
   } catch (error) {
-    logQueryError(meta, error);
+    logQueryError(meta, error, queryId);
     logFallback(meta, 'errore query');
     registerHomeFetch(meta.table, 'mock');
     return fallback;
+  }
+}
+
+/** Supabase-only fetch: no mock fallback; returns empty/null on failure. */
+export async function fetchFromSupabaseOnly<T>(
+  meta: QueryMeta,
+  fetcher: () => Promise<T>,
+  emptyValue: T,
+): Promise<T> {
+  if (!isSupabaseEnabled) {
+    logFallback(meta, 'env mancanti — sorgente vuota');
+    registerHomeFetch(meta.table, 'db');
+    return emptyValue;
+  }
+
+  const queryId = logQueryStart(meta);
+
+  try {
+    const result = await fetcher();
+    const count = Array.isArray(result) ? result.length : result == null ? 0 : 1;
+    logQuerySuccess(meta, count, queryId);
+    registerHomeFetch(meta.table, 'db');
+    return result ?? emptyValue;
+  } catch (error) {
+    logQueryError(meta, error, queryId);
+    logFallback(meta, 'errore query — sorgente vuota');
+    registerHomeFetch(meta.table, 'db');
+    return emptyValue;
   }
 }

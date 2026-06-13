@@ -1,11 +1,19 @@
 import { CategorySlug } from '@/types';
 
 export const CATEGORY_COLORS: Record<CategorySlug, string> = {
-  pulizie: '#10B981',
-  idraulici: '#3B82F6',
   elettricisti: '#F59E0B',
+  idraulici: '#3B82F6',
+  fabbri: '#78716C',
   giardinieri: '#22C55E',
-  tuttofare: '#64748B',
+  pulizie: '#10B981',
+  imbianchini: '#A855F7',
+  serramentisti: '#0EA5E9',
+  caldaie: '#EF4444',
+  condizionatori: '#06B6D4',
+  'traslochi-sgomberi': '#6366F1',
+  antennisti: '#8B5CF6',
+  'montaggio-mobili': '#64748B',
+  'tende-da-sole': '#F97316',
 };
 
 const OVERLAY_ALPHA = 0.62;

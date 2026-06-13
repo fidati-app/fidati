@@ -31,6 +31,7 @@ export const Design = {
   homeCard: {
     proWidth: 300,
     proHeight: 112,
+    browseProWidth: 272,
     urgentWidth: 148,
     urgentHeight: 162,
   },
