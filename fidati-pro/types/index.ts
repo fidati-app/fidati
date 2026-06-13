@@ -107,12 +107,51 @@ export interface ProProfile {
   memberSince: string;
   earningsThisMonth: number;
   verified: boolean;
+  availableToday: boolean;
+  baseCity: string | null;
   serviceZones: string[];
   services: ProService[];
   portfolio: ProPortfolioItem[];
   reviews: ProReview[];
   stats: ProDashboardStats;
 }
+
+/** Profilo professionista collegato all'account auth (Supabase). */
+export interface MyProfessional {
+  id: string;
+  legacyId: string | null;
+  authUserId: string;
+  name: string;
+  category: string;
+  categorySlug: string | null;
+  email: string | null;
+  phone: string | null;
+  bio: string;
+  imageUrl: string | null;
+  heroImageUrl: string | null;
+  avatarColor: string;
+  rating: number;
+  reviewCount: number;
+  jobsCompleted: number;
+  pricePerHour: number;
+  verified: boolean;
+  availableToday: boolean;
+  baseCity: string | null;
+  serviceAreas: string[];
+  serviceZones: string[];
+  memberSince: string | null;
+  earningsThisMonth: number;
+  earningsThisWeek: number;
+  profileCompletion: number;
+  newClientsThisMonth: number;
+  responseRate: number;
+  accountStatus: AccountStatus;
+  profileViews: number;
+  services: ProService[];
+  stats: ProDashboardStats;
+}
+
+export type MyProfessionalStatus = 'idle' | 'loading' | 'ready' | 'not_found' | 'error';
 
 export interface AgendaDayMeta {
   key: string;

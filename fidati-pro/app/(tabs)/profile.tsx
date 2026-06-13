@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -9,9 +10,11 @@ import { ProfileBlock, ProfileRow, ReviewCard } from '@/components/profile/Profi
 import { ProfileStatsBar } from '@/components/profile/ProfileStatsBar';
 import { Screen } from '@/components/Screen';
 import { VerifiedBadge } from '@/components/ui/ProScreenHeader';
+import { useAuth } from '@/contexts/AuthContext';
+import { useMyProfessionalProfile } from '@/hooks/useMyProfessionalProfile';
+import { myProfessionalToProProfile } from '@/services/professionalsMeService';
 import { Colors } from '@/constants/colors';
 import { Design } from '@/constants/design';
-import { MOCK_PRO_PROFILE } from '@/services/mockData';
 
 const SETTINGS = [
   { icon: 'construct-outline' as const, label: 'Servizi e prezzi', route: '/profile/services' },
@@ -24,7 +27,25 @@ const SETTINGS = [
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const profile = MOCK_PRO_PROFILE;
+  const { signOut, user } = useAuth();
+  const { profile: myProfessional } = useMyProfessionalProfile();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  if (!myProfessional) {
+    return null;
+  }
+
+  const profile = myProfessionalToProProfile(myProfessional);
+
+  const handleSignOut = async () => {
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+    await signOut();
+    setIsSigningOut(false);
+    router.replace('/login');
+  };
+
+  const displayEmail = user?.email ?? profile.email;
 
   return (
     <Screen padded={false} contentContainerStyle={{ paddingBottom: 100 + insets.bottom }}>
@@ -63,6 +84,12 @@ export default function ProfileScreen() {
 
         <ProfileBlock title="Zone servite">
           <View style={styles.zones}>
+            {profile.baseCity ? (
+              <View style={styles.zonePill}>
+                <Ionicons name="business-outline" size={12} color={Colors.navy} />
+                <AppText style={styles.zoneText}>Base: {profile.baseCity}</AppText>
+              </View>
+            ) : null}
             {profile.serviceZones.map((zone) => (
               <View key={zone} style={styles.zonePill}>
                 <Ionicons name="location-outline" size={12} color={Colors.navy} />
@@ -73,17 +100,25 @@ export default function ProfileScreen() {
         </ProfileBlock>
 
         <ProfileBlock title="Portfolio lavori">
-          <PortfolioShowcase items={profile.portfolio} />
+          {profile.portfolio.length > 0 ? (
+            <PortfolioShowcase items={profile.portfolio} />
+          ) : (
+            <AppText style={styles.bio}>Nessun lavoro in portfolio per ora.</AppText>
+          )}
         </ProfileBlock>
 
         <ProfileBlock title="Recensioni">
-          {profile.reviews.map((review) => (
-            <ReviewCard key={review.id} {...review} />
-          ))}
+          {profile.reviews.length > 0 ? (
+            profile.reviews.map((review) => (
+              <ReviewCard key={review.id} {...review} />
+            ))
+          ) : (
+            <AppText style={styles.bio}>Nessuna recensione ancora disponibile.</AppText>
+          )}
         </ProfileBlock>
 
         <ProfileBlock title="Contatti">
-          <ProfileRow icon="mail-outline" label="Email" value={profile.email} />
+          <ProfileRow icon="mail-outline" label="Email" value={displayEmail} />
           <ProfileRow icon="call-outline" label="Telefono" value={profile.phone} />
         </ProfileBlock>
 
@@ -101,9 +136,13 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        <Pressable style={styles.logout}>
+        <Pressable
+          style={[styles.logout, isSigningOut && styles.logoutDisabled]}
+          onPress={handleSignOut}
+          disabled={isSigningOut}
+        >
           <Ionicons name="log-out-outline" size={18} color={Colors.error} />
-          <AppText style={styles.logoutText}>Esci</AppText>
+          <AppText style={styles.logoutText}>{isSigningOut ? 'Uscita…' : 'Esci'}</AppText>
         </Pressable>
       </View>
     </Screen>
@@ -192,6 +231,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(239, 68, 68, 0.22)',
     backgroundColor: Colors.card,
+  },
+  logoutDisabled: {
+    opacity: 0.6,
   },
   logoutText: { fontSize: 14, fontWeight: '700', color: Colors.error },
 });

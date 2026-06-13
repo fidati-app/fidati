@@ -10,9 +10,9 @@ import { Colors } from '@/constants/colors';
 import { PROFILE_STEPS } from '@/constants/profileSteps';
 import { Design } from '@/constants/design';
 import { useProfileProgress } from '@/contexts/ProfileProgressContext';
+import { useMyProfessionalProfile } from '@/hooks/useMyProfessionalProfile';
 import {
   getAppointmentsForDay,
-  MOCK_PRO_PROFILE,
   MOCK_REQUESTS,
 } from '@/services/mockData';
 import { ProAppointment } from '@/types';
@@ -196,8 +196,12 @@ function TimelineItem({ apt, isLast }: { apt: ProAppointment; isLast?: boolean }
 export function HomeDashboard() {
   const router = useRouter();
   const [period, setPeriod] = useState<PeriodKey>('today');
+  const { profile } = useMyProfessionalProfile();
 
-  const profile = MOCK_PRO_PROFILE;
+  if (!profile) {
+    return null;
+  }
+
   const firstName = profile.name.split(' ')[0];
   const data = PERIOD_DATA[period];
   const isPositive = data.changePercent >= 0;

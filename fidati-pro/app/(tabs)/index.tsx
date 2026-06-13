@@ -13,14 +13,20 @@ import { AvailabilityMenu } from '@/components/ui/AvailabilityMenu';
 import { TransientToast } from '@/components/ui/TransientToast';
 import { Colors } from '@/constants/colors';
 import { Design } from '@/constants/design';
+import { useMyProfessionalProfile } from '@/hooks/useMyProfessionalProfile';
 import { MOCK_REQUESTS } from '@/services/mockData';
 
 const LOGO = require('@/components/logo-fidatipro.png');
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const [available, setAvailable] = useState(true);
+  const { profile } = useMyProfessionalProfile();
+  const [available, setAvailable] = useState(profile?.availableToday ?? true);
   const [showAvailableToast, setShowAvailableToast] = useState(false);
+
+  if (!profile) {
+    return null;
+  }
 
   const handleAvailabilityChange = useCallback((value: boolean) => {
     if (!value) {

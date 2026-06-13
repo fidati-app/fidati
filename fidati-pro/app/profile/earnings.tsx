@@ -4,7 +4,7 @@ import { AppText } from '@/components/AppText';
 import { ProfilePageShell } from '@/components/profile/ProfilePageShell';
 import { Colors } from '@/constants/colors';
 import { Design } from '@/constants/design';
-import { MOCK_PRO_PROFILE } from '@/services/mockData';
+import { useMyProfessionalProfile } from '@/hooks/useMyProfessionalProfile';
 
 const INVOICES = [
   { id: 'inv-1', label: 'Maggio 2026', amount: 2640, status: 'Pagata' },
@@ -13,7 +13,13 @@ const INVOICES = [
 ];
 
 export default function ProfileEarningsScreen() {
-  const stats = MOCK_PRO_PROFILE.stats;
+  const { profile } = useMyProfessionalProfile();
+
+  if (!profile) {
+    return null;
+  }
+
+  const stats = profile.stats;
 
   return (
     <ProfilePageShell title="Guadagni e fatture" subtitle="Riepilogo incassi e documenti">

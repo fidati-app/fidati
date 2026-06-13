@@ -22,6 +22,8 @@ export const MOCK_PRO_PROFILE: ProProfile = {
   memberSince: 'Marzo 2023',
   earningsThisMonth: 2840,
   verified: true,
+  availableToday: true,
+  baseCity: 'Milano',
   serviceZones: ['Centro', 'Porta Nuova', 'Isola', 'Navigli', 'Lambrate'],
   services: [
     { id: 's1', title: 'Pulizia standard appartamento', priceFrom: 65, duration: '2–3 ore' },
