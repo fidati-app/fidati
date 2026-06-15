@@ -1,0 +1,42 @@
+import type { Permission } from '@/hooks/usePermissions';
+
+export const ALL_PERMISSIONS: { key: Permission; label: string; group: string }[] = [
+  { key: 'dashboard.view', label: 'Visualizza dashboard', group: 'Dashboard' },
+  { key: 'professionals.view', label: 'Visualizza professionisti', group: 'Professionisti' },
+  { key: 'professionals.edit', label: 'Modifica professionisti', group: 'Professionisti' },
+  { key: 'professionals.ban', label: 'Banna professionisti', group: 'Professionisti' },
+  { key: 'verifications.view', label: 'Visualizza verifiche', group: 'Verifiche' },
+  { key: 'verifications.approve', label: 'Approva verifiche', group: 'Verifiche' },
+  { key: 'verifications.reject', label: 'Rifiuta verifiche', group: 'Verifiche' },
+  { key: 'verifications.request_changes', label: 'Richiedi modifiche verifica', group: 'Verifiche' },
+  { key: 'customers.view', label: 'Visualizza clienti', group: 'Clienti' },
+  { key: 'customers.edit', label: 'Modifica clienti', group: 'Clienti' },
+  { key: 'customers.ban', label: 'Banna clienti', group: 'Clienti' },
+  { key: 'requests.view', label: 'Visualizza richieste', group: 'Richieste' },
+  { key: 'requests.edit', label: 'Modifica richieste', group: 'Richieste' },
+  { key: 'chats.view', label: 'Visualizza chat', group: 'Chat' },
+  { key: 'reports.view', label: 'Visualizza segnalazioni', group: 'Segnalazioni' },
+  { key: 'reports.edit', label: 'Gestisci segnalazioni', group: 'Segnalazioni' },
+  { key: 'accounting.view', label: 'Visualizza contabilità', group: 'Contabilità' },
+  { key: 'accounting.edit', label: 'Modifica contabilità', group: 'Contabilità' },
+  { key: 'staff.view', label: 'Visualizza staff', group: 'Staff' },
+  { key: 'staff.create', label: 'Crea staff', group: 'Staff' },
+  { key: 'staff.edit', label: 'Modifica staff', group: 'Staff' },
+  { key: 'settings.view', label: 'Visualizza impostazioni', group: 'Impostazioni' },
+  { key: 'settings.edit', label: 'Modifica impostazioni', group: 'Impostazioni' },
+  { key: 'audit.view', label: 'Visualizza audit log', group: 'Sicurezza' },
+];
+
+export const NAV_PERMISSIONS: Record<string, Permission> = {
+  '/': 'dashboard.view',
+  '/professionals': 'professionals.view',
+  '/verifications': 'verifications.view',
+  '/customers': 'customers.view',
+  '/requests': 'requests.view',
+  '/chats': 'chats.view',
+  '/reports': 'reports.view',
+  '/accounting': 'accounting.view',
+  '/staff': 'staff.view',
+  '/audit': 'audit.view',
+  '/settings': 'settings.view',
+};

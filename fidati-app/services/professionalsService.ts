@@ -21,6 +21,17 @@ import {
 
 import { fetchFromSupabaseOnly } from './supabaseUtils';
 
+const PROFESSIONAL_VERIFIED_FILTER = 'verification_status.eq.verified,verified.eq.true';
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function devLogProfessionalLookup(message: string, payload?: Record<string, unknown>) {
+  if (__DEV__) {
+    console.log(`[Fidati] ${message}`, payload ?? '');
+  }
+}
+
 interface ProfessionalRow {
   id: string;
   legacy_id: string | null;
@@ -39,6 +50,9 @@ interface ProfessionalRow {
   distance_km: number | null;
   available_today: boolean;
   verified: boolean;
+  verification_status: string | null;
+  account_status: string | null;
+  client_visibility_status: string | null;
   badge_document: boolean;
   badge_phone: boolean;
   badge_professional: boolean;
@@ -68,6 +82,7 @@ interface ServiceRow {
   legacy_id: string | null;
   title: string;
   price_from: number;
+  quote_required?: boolean | null;
   duration_label: string;
   sort_order: number;
   services: { icon: string; description: string } | { icon: string; description: string }[] | null;
@@ -155,7 +170,7 @@ function mapProfessional(
   const city = parseServiceCity(row.base_city) ?? serviceAreas[0] ?? 'Barletta';
 
   return {
-    id: row.legacy_id ?? row.id,
+    id: row.id,
     name: row.name,
     categorySlug,
     category: sanitizeLegacyCategoryLabel(row.category_label, categorySlug),
@@ -168,7 +183,12 @@ function mapProfessional(
     pricePerHour: Number(row.price_per_hour),
     distanceKm: Number(row.distance_km ?? 0),
     availableToday: row.available_today,
-    verified: row.verified,
+    verified: row.verification_status === 'verified' || row.verified,
+    clientVisibilityStatus:
+      row.client_visibility_status === 'hidden_changes' || row.client_visibility_status === 'pending_review'
+        ? row.client_visibility_status
+        : 'visible',
+    accountStatus: row.account_status ?? undefined,
     badges: {
       document: row.badge_document,
       phone: row.badge_phone,
@@ -309,7 +329,9 @@ export async function fetchProfessionals(): Promise<Professional[]> {
       const { data, error } = await supabase
         .from('professionals')
         .select(PROFESSIONAL_SELECT)
-        .eq('verified', true)
+        .or(PROFESSIONAL_VERIFIED_FILTER)
+        .eq('client_visibility_status', 'visible')
+        .neq('account_status', 'banned')
         .order('rating', { ascending: false });
 
       if (error) throw error;
@@ -320,22 +342,39 @@ export async function fetchProfessionals(): Promise<Professional[]> {
   );
 }
 
-export async function fetchProfessionalByLegacyId(legacyId: string): Promise<Professional | null> {
+export async function fetchProfessionalById(professionalId: string): Promise<Professional | null> {
+  if (!professionalId.trim()) {
+    return null;
+  }
+
+  const lookupByUuid = UUID_RE.test(professionalId);
+  devLogProfessionalLookup('fetchProfessionalById:start', {
+    professionalId,
+    lookupBy: lookupByUuid ? 'professionals.id' : 'legacy_id',
+  });
+
   return fetchFromSupabaseOnly(
     {
       service: 'professionalsService',
       table: 'professionals',
-      name: 'getByLegacyId',
+      name: lookupByUuid ? 'getById' : 'getByLegacyId',
       source: 'useProfessional()',
-      context: { legacyId },
+      context: { professionalId },
     },
     async () => {
-      const { data, error } = await supabase
-        .from('professionals')
-        .select(PROFESSIONAL_SELECT)
-        .eq('legacy_id', legacyId)
-        .eq('verified', true)
-        .maybeSingle();
+      let query = supabase.from('professionals').select(PROFESSIONAL_SELECT).or(PROFESSIONAL_VERIFIED_FILTER);
+
+      query = lookupByUuid
+        ? query.eq('id', professionalId)
+        : query.eq('legacy_id', professionalId);
+
+      const { data, error } = await query.maybeSingle();
+
+      devLogProfessionalLookup('fetchProfessionalById:result', {
+        professionalId,
+        found: Boolean(data),
+        error: error?.message ?? null,
+      });
 
       if (error) throw error;
       if (!data) return null;
@@ -343,6 +382,11 @@ export async function fetchProfessionalByLegacyId(legacyId: string): Promise<Pro
     },
     null,
   );
+}
+
+/** @deprecated usa fetchProfessionalById */
+export async function fetchProfessionalByLegacyId(legacyId: string): Promise<Professional | null> {
+  return fetchProfessionalById(legacyId);
 }
 
 export async function fetchProfessionalsByCategory(slug: string): Promise<Professional[]> {
@@ -381,7 +425,9 @@ export async function fetchProfessionalsByCategory(slug: string): Promise<Profes
       const { data, error } = await supabase
         .from('professionals')
         .select(PROFESSIONAL_SELECT)
-        .eq('verified', true)
+        .or(PROFESSIONAL_VERIFIED_FILTER)
+        .eq('client_visibility_status', 'visible')
+        .neq('account_status', 'banned')
         .eq('category_id', category.id)
         .order('rating', { ascending: false });
 
@@ -402,12 +448,17 @@ function mapServiceRow(
   const catalogInfo = Array.isArray(catalog) ? catalog[0] : catalog;
   const linked = packagesByService.get(row.id) ?? [];
 
+  const quoteRequired = Boolean(row.quote_required);
+  const fromPrice = quoteRequired ? 0 : Number(row.price_from);
+
   const packages =
     linked.length > 0
       ? linked
       : orphanPackages.length > 0
         ? orphanPackages
-        : [
+        : quoteRequired
+          ? []
+          : [
             {
               id: `${row.legacy_id ?? row.id}-base`,
               tier: 'base' as PackageTier,
@@ -423,7 +474,8 @@ function mapServiceRow(
     title: row.title,
     icon: (catalogInfo?.icon ?? 'construct-outline') as CategoryIcon,
     description: catalogInfo?.description ?? row.title,
-    fromPrice: Number(row.price_from),
+    fromPrice,
+    quoteRequired,
     packages,
   };
 }
@@ -435,7 +487,7 @@ export interface ProfessionalDetailData {
 }
 
 export async function fetchProfessionalDetail(
-  legacyId: string,
+  professionalId: string,
   professional: Professional,
 ): Promise<ProfessionalDetailData | null> {
   if (!isSupabaseEnabled) {
@@ -448,61 +500,42 @@ export async function fetchProfessionalDetail(
     return null;
   }
 
+  const resolvedId = professional.id;
+  devLogProfessionalLookup('fetchProfessionalDetail:start', {
+    routeParam: professionalId,
+    resolvedId,
+  });
+
   const detailMeta = {
     service: 'professionalsService',
     table: 'professional_detail',
     name: 'load',
     source: 'useProfessionalDetail()',
-    context: { legacyId },
+    context: { professionalId: resolvedId },
   };
-
-  const proLookupMeta = {
-    service: 'professionalsService',
-    table: 'professionals',
-    name: 'resolveForDetail',
-    source: 'useProfessionalDetail()',
-    context: { legacyId },
-  };
-  const proQueryId = logQueryStart(proLookupMeta);
 
   try {
-    const { data: pro, error: proError } = await supabase
-      .from('professionals')
-      .select('id')
-      .eq('legacy_id', legacyId)
-      .maybeSingle();
-
-    if (proError) {
-      logQueryError(proLookupMeta, proError, proQueryId);
-      return null;
-    }
-    logQuerySuccess(proLookupMeta, pro ? 1 : 0, proQueryId);
-    if (!pro) {
-      logFallback(detailMeta, 'professionista non trovato per legacy_id');
-      return null;
-    }
-
     const [servicesRes, packagesRes, portfolioRes, zonesRes] = await Promise.all([
       supabase
         .from('professional_services')
         .select('*, services ( icon, description )')
-        .eq('professional_id', pro.id)
+        .eq('professional_id', resolvedId)
         .eq('is_active', true)
         .order('sort_order', { ascending: true }),
       supabase
         .from('professional_service_packages')
         .select('*')
-        .eq('professional_id', pro.id)
+        .eq('professional_id', resolvedId)
         .order('sort_order', { ascending: true }),
       supabase
         .from('professional_portfolio')
         .select('cover_image, before_image, after_image, sort_order')
-        .eq('professional_id', pro.id)
+        .eq('professional_id', resolvedId)
         .order('sort_order', { ascending: true }),
       supabase
         .from('professional_zones')
         .select('zone_name, sort_order')
-        .eq('professional_id', pro.id)
+        .eq('professional_id', resolvedId)
         .order('sort_order', { ascending: true }),
     ]);
 

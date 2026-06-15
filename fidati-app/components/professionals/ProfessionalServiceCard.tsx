@@ -45,7 +45,9 @@ export function ProfessionalServiceCard({
         </View>
         <View style={styles.right}>
           <AppText style={[styles.fromPrice, { color: accent }]}>
-            da {service.fromPrice}€
+            {service.quoteRequired
+              ? 'Preventivo su richiesta'
+              : `da ${service.fromPrice}€`}
           </AppText>
           <Ionicons
             name={expanded ? 'chevron-up' : 'chevron-down'}

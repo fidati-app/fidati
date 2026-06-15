@@ -12,9 +12,9 @@ import { ProfessionalGate } from '@/components/auth/ProfessionalGate';
 import { SupabaseConfigErrorScreen } from '@/components/auth/SupabaseConfigErrorScreen';
 import { Colors } from '@/constants/colors';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { AdminChangeRequestsProvider } from '@/contexts/AdminChangeRequestsContext';
 import { MyProfessionalProvider } from '@/contexts/MyProfessionalContext';
 import { ProfileProgressProvider } from '@/contexts/ProfileProgressContext';
-import { devLog } from '@/lib/devLog';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -31,10 +31,6 @@ function AuthenticatedNavigationFix() {
       segments[0] === 'register';
 
     if (onPublicAuthRoute) {
-      devLog('route decision: authenticated user on public route → tabs', {
-        pathname,
-        segments,
-      });
       router.replace('/(tabs)');
     }
   }, [pathname, router, segments]);
@@ -44,8 +40,8 @@ function AuthenticatedNavigationFix() {
 
 function AuthenticatedShell() {
   return (
-    <MyProfessionalProvider>
-      <ProfileProgressProvider>
+    <ProfileProgressProvider>
+      <AdminChangeRequestsProvider>
         <AuthenticatedNavigationFix />
         <View style={styles.shell}>
           <ProfessionalGate />
@@ -62,6 +58,10 @@ function AuthenticatedShell() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="profile" options={{ headerShown: false }} />
             <Stack.Screen
+              name="change-requests"
+              options={{ headerShown: false, animation: 'slide_from_right' }}
+            />
+            <Stack.Screen
               name="requests/[id]"
               options={{ headerShown: false, animation: 'slide_from_right' }}
             />
@@ -71,14 +71,35 @@ function AuthenticatedShell() {
             />
           </Stack>
         </View>
-      </ProfileProgressProvider>
-    </MyProfessionalProvider>
+      </AdminChangeRequestsProvider>
+    </ProfileProgressProvider>
   );
+}
+
+function PublicNavigationFix() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const segments = useSegments();
+
+  useEffect(() => {
+    const onAuthenticatedRoute =
+      segments[0] === '(tabs)' ||
+      segments[0] === 'profile' ||
+      pathname.startsWith('/requests') ||
+      pathname.startsWith('/messages');
+
+    if (onAuthenticatedRoute) {
+      router.replace('/login');
+    }
+  }, [pathname, router, segments]);
+
+  return null;
 }
 
 function PublicShell() {
   return (
     <>
+      <PublicNavigationFix />
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.background } }}>
         <Stack.Screen name="index" />
@@ -90,59 +111,13 @@ function PublicShell() {
 }
 
 function AppBootstrap() {
-  const { isAuthenticated, isLoading, configError, user, session } = useAuth();
-  const pathname = usePathname();
-  const segments = useSegments();
+  const { isAuthenticated, isLoading, configError, session, isRegistrationLocked } = useAuth();
 
   useEffect(() => {
     if (!isLoading) {
-      SplashScreen.hideAsync()
-        .then(() => {
-          devLog('splash hidden');
-        })
-        .catch(() => {
-          devLog('splash hidden (with error)');
-        });
+      SplashScreen.hideAsync().catch(() => {});
     }
   }, [isLoading]);
-
-  useEffect(() => {
-    if (isLoading) {
-      devLog('route decision: auth-loading');
-      return;
-    }
-
-    if (configError) {
-      devLog('route decision: config-error');
-      return;
-    }
-
-    if (!isAuthenticated || !session?.user) {
-      devLog('route decision: public-shell/login', {
-        isAuthenticated,
-        userId: user?.id ?? null,
-        sessionPresent: Boolean(session),
-        currentRoute: pathname,
-        segments,
-      });
-      return;
-    }
-
-    devLog('route decision: authenticated-shell/app', {
-      userId: user?.id ?? null,
-      sessionPresent: Boolean(session),
-      currentRoute: pathname,
-      segments,
-    });
-  }, [
-    configError,
-    isAuthenticated,
-    isLoading,
-    pathname,
-    segments,
-    session,
-    user?.id,
-  ]);
 
   if (isLoading) {
     return <AuthLoadingScreen />;
@@ -153,6 +128,10 @@ function AppBootstrap() {
   }
 
   if (!isAuthenticated || !session?.user) {
+    return <PublicShell />;
+  }
+
+  if (isRegistrationLocked) {
     return <PublicShell />;
   }
 
@@ -168,7 +147,9 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <AuthProvider>
-        <AppBootstrap />
+        <MyProfessionalProvider>
+          <AppBootstrap />
+        </MyProfessionalProvider>
       </AuthProvider>
     </GestureHandlerRootView>
   );

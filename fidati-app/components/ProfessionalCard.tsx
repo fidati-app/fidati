@@ -28,7 +28,12 @@ export function ProfessionalCard({ professional, fullWidth }: ProfessionalCardPr
         { borderColor: categoryBorder },
         pressed && styles.pressed,
       ]}
-      onPress={() => router.push(`/professionals/${professional.id}`)}
+      onPress={() => {
+        if (__DEV__) {
+          console.log('[Fidati] ProfessionalCard:navigate', { professionalId: professional.id });
+        }
+        router.push(`/professionals/${professional.id}`);
+      }}
     >
       <View style={styles.media}>
         <ProfileImage

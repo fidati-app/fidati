@@ -18,7 +18,7 @@ export default function CheckoutScreen() {
     packageId: string;
   }>();
   const router = useRouter();
-  const professional = useProfessional(professionalId ?? '');
+  const { professional } = useProfessional(professionalId ?? '');
   const [date, setDate] = useState('12 Giugno 2026');
   const [time, setTime] = useState('10:00');
 

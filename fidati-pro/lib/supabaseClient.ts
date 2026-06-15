@@ -116,8 +116,6 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
   },
 });
 
-if (__DEV__) {
-  console.log('[Fidati Pro] env EXPO_PUBLIC_SUPABASE_URL present:', Boolean(supabaseUrl));
-  console.log('[Fidati Pro] env EXPO_PUBLIC_SUPABASE_ANON_KEY present:', Boolean(supabaseAnonKey));
-  console.log('[Fidati Pro] isSupabaseConfigured:', isSupabaseConfigured);
+if (__DEV__ && !isSupabaseConfigured) {
+  console.warn('[Fidati Pro] Supabase env vars missing');
 }

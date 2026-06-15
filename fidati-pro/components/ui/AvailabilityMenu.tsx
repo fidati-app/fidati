@@ -12,9 +12,22 @@ import { AppText } from '@/components/AppText';
 import { Colors } from '@/constants/colors';
 import { Design } from '@/constants/design';
 
+export type AvailabilityToggleMode =
+  | 'available'
+  | 'unavailable'
+  | 'verification_review'
+  | 'profile_incomplete'
+  | 'hidden_changes'
+  | 'pending_review';
+
 interface AvailabilityMenuProps {
   available: boolean;
+  mode?: AvailabilityToggleMode;
   onChange: (available: boolean) => void;
+  onReviewPress?: () => void;
+  onIncompletePress?: () => void;
+  onHiddenChangesPress?: () => void;
+  onPendingReviewPress?: () => void;
 }
 
 type Anchor = { x: number; y: number; width: number; height: number };
@@ -23,7 +36,17 @@ const MENU_MIN_WIDTH = 272;
 const OPEN_EASING = Easing.out(Easing.cubic);
 const CLOSE_EASING = Easing.in(Easing.cubic);
 
-export function AvailabilityMenu({ available, onChange }: AvailabilityMenuProps) {
+export function AvailabilityMenu({
+  available,
+  mode,
+  onChange,
+  onReviewPress,
+  onIncompletePress,
+  onHiddenChangesPress,
+  onPendingReviewPress,
+}: AvailabilityMenuProps) {
+  const toggleMode: AvailabilityToggleMode =
+    mode ?? (available ? 'available' : 'unavailable');
   const triggerRef = useRef<View>(null);
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<Anchor>({ x: 0, y: 0, width: 0, height: 0 });
@@ -55,6 +78,22 @@ export function AvailabilityMenu({ available, onChange }: AvailabilityMenuProps)
   }));
 
   const openMenu = () => {
+    if (toggleMode === 'verification_review') {
+      onReviewPress?.();
+      return;
+    }
+    if (toggleMode === 'profile_incomplete') {
+      onIncompletePress?.();
+      return;
+    }
+    if (toggleMode === 'hidden_changes') {
+      onHiddenChangesPress?.();
+      return;
+    }
+    if (toggleMode === 'pending_review') {
+      onPendingReviewPress?.();
+      return;
+    }
     triggerRef.current?.measureInWindow((x, y, width, height) => {
       setAnchor({ x, y, width, height });
       setOpen(true);
@@ -76,19 +115,56 @@ export function AvailabilityMenu({ available, onChange }: AvailabilityMenuProps)
   const screenWidth = Dimensions.get('window').width;
   const menuLeft = Math.max(12, Math.min(anchor.x, screenWidth - menuWidth - 12));
 
+  const triggerStyle =
+    toggleMode === 'verification_review' ||
+    toggleMode === 'profile_incomplete' ||
+    toggleMode === 'hidden_changes' ||
+    toggleMode === 'pending_review'
+      ? styles.triggerReview
+      : toggleMode === 'available'
+        ? styles.triggerOn
+        : styles.triggerOff;
+
+  const dotStyle =
+    toggleMode === 'verification_review' ||
+    toggleMode === 'profile_incomplete' ||
+    toggleMode === 'hidden_changes' ||
+    toggleMode === 'pending_review'
+      ? styles.dotReview
+      : toggleMode === 'available'
+        ? styles.dotOn
+        : styles.dotOff;
+
   return (
     <View style={styles.wrap}>
       <View ref={triggerRef} collapsable={false}>
       <Pressable
         onPress={openMenu}
         hitSlop={6}
-        accessibilityLabel="Cambia disponibilità"
-        style={[styles.trigger, available ? styles.triggerOn : styles.triggerOff]}
+        accessibilityLabel={
+          toggleMode === 'verification_review'
+            ? 'Profilo in revisione'
+            : toggleMode === 'profile_incomplete'
+              ? 'Profilo incompleto'
+              : toggleMode === 'hidden_changes'
+                ? 'Modifiche richieste'
+                : toggleMode === 'pending_review'
+                  ? 'Correzioni in revisione'
+                  : 'Cambia disponibilità'
+        }
+        style={[styles.trigger, triggerStyle]}
       >
-        <View style={[styles.dot, available ? styles.dotOn : styles.dotOff]} />
-        <Animated.View style={chevronAnimatedStyle}>
+        <View style={[styles.dot, dotStyle]} />
+        {toggleMode === 'verification_review' ||
+        toggleMode === 'profile_incomplete' ||
+        toggleMode === 'hidden_changes' ||
+        toggleMode === 'pending_review' ? (
           <Ionicons name="chevron-down" size={13} color="rgba(255,255,255,0.9)" />
-        </Animated.View>
+        ) : (
+          <Animated.View style={chevronAnimatedStyle}>
+            <Ionicons name="chevron-down" size={13} color="rgba(255,255,255,0.9)" />
+          </Animated.View>
+        )}
       </Pressable>
       </View>
 
@@ -174,6 +250,11 @@ const styles = StyleSheet.create({
   triggerOff: {
     borderColor: 'rgba(239, 68, 68, 0.45)',
   },
+  triggerReview: {
+    borderColor: 'rgba(245, 158, 11, 0.55)',
+    paddingHorizontal: 12,
+    gap: 6,
+  },
   dot: {
     width: 12,
     height: 12,
@@ -184,6 +265,14 @@ const styles = StyleSheet.create({
   },
   dotOff: {
     backgroundColor: Colors.error,
+  },
+  dotReview: {
+    backgroundColor: Colors.pending,
+  },
+  reviewLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.92)',
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,

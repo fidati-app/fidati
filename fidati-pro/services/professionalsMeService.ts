@@ -1,12 +1,15 @@
-import { devLog, devLogSupabaseError } from '@/lib/devLog';
+import { devLogSupabaseError } from '@/lib/devLog';
 import { supabase } from '@/lib/supabaseClient';
-import { AccountStatus, MyProfessional, ProDashboardStats, ProProfile, ProService } from '@/types';
+import { AccountStatus, ClientVisibilityStatus, MyProfessional, ProDashboardStats, ProProfile, ProService, VerificationStatus } from '@/types';
 
 interface ServiceRow {
   id: string;
   legacy_id: string | null;
+  service_slug: string | null;
   title: string;
   price_from: number;
+  price_max: number | null;
+  quote_required: boolean | null;
   duration_label: string;
   sort_order: number;
 }
@@ -21,6 +24,10 @@ interface MyProfessionalRow {
   legacy_id: string | null;
   auth_user_id: string | null;
   name: string;
+  account_kind: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  company_name: string | null;
   category_label: string;
   category_slug: string | null;
   email: string | null;
@@ -45,6 +52,12 @@ interface MyProfessionalRow {
   response_rate: number;
   account_status: string;
   profile_views: number;
+  verification_status: string | null;
+  verification_requested_at: string | null;
+  verification_rejected_reason: string | null;
+  client_visibility_status: string | null;
+  client_visibility_reason: string | null;
+  client_visibility_changed_at: string | null;
   professional_services?: ServiceRow[] | null;
   professional_zones?: ZoneRow[] | null;
 }
@@ -54,6 +67,10 @@ const MY_PROFESSIONAL_SELECT = `
   legacy_id,
   auth_user_id,
   name,
+  account_kind,
+  first_name,
+  last_name,
+  company_name,
   category_label,
   category_slug,
   email,
@@ -78,11 +95,20 @@ const MY_PROFESSIONAL_SELECT = `
   response_rate,
   account_status,
   profile_views,
+  verification_status,
+  verification_requested_at,
+  verification_rejected_reason,
+  client_visibility_status,
+  client_visibility_reason,
+  client_visibility_changed_at,
   professional_services (
     id,
     legacy_id,
+    service_slug,
     title,
     price_from,
+    price_max,
+    quote_required,
     duration_label,
     sort_order
   ),
@@ -92,6 +118,23 @@ const MY_PROFESSIONAL_SELECT = `
   )
 `;
 
+function mapClientVisibilityStatus(value: string | null | undefined): ClientVisibilityStatus {
+  if (value === 'hidden_changes' || value === 'pending_review') return value;
+  return 'visible';
+}
+
+function mapVerificationStatus(value: string | null | undefined): VerificationStatus {
+  if (
+    value === 'pending_review' ||
+    value === 'verified' ||
+    value === 'rejected' ||
+    value === 'changes_requested'
+  ) {
+    return value;
+  }
+  return 'unverified';
+}
+
 function mapAccountStatus(value: string | null | undefined): AccountStatus {
   if (value === 'verified' || value === 'in_review' || value === 'unverified') {
     return value;
@@ -99,14 +142,28 @@ function mapAccountStatus(value: string | null | undefined): AccountStatus {
   return 'unverified';
 }
 
+function mapAccountKind(value: string | null | undefined): import('@/types').ProfessionalAccountKind {
+  return value === 'company' ? 'company' : 'individual';
+}
+
 function mapServices(rows: ServiceRow[] | null | undefined): ProService[] {
+  const seen = new Set<string>();
+
   return (rows ?? [])
     .slice()
     .sort((a, b) => a.sort_order - b.sort_order)
+    .filter((row) => {
+      const key = row.service_slug ?? row.title.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .map((row) => ({
       id: row.legacy_id ?? row.id,
       title: row.title,
       priceFrom: Number(row.price_from),
+      priceMax: row.price_max != null ? Number(row.price_max) : null,
+      quoteRequired: Boolean(row.quote_required),
       duration: row.duration_label,
     }));
 }
@@ -149,6 +206,10 @@ function mapMyProfessionalRow(row: MyProfessionalRow): MyProfessional {
     id: row.id,
     legacyId: row.legacy_id,
     authUserId: row.auth_user_id ?? '',
+    accountKind: mapAccountKind(row.account_kind),
+    firstName: row.first_name,
+    lastName: row.last_name,
+    companyName: row.company_name,
     name: row.name,
     category: row.category_label,
     categorySlug: row.category_slug,
@@ -175,6 +236,12 @@ function mapMyProfessionalRow(row: MyProfessionalRow): MyProfessional {
     responseRate: row.response_rate ?? 100,
     accountStatus: mapAccountStatus(row.account_status),
     profileViews: row.profile_views ?? 0,
+    verificationStatus: mapVerificationStatus(row.verification_status),
+    verificationRequestedAt: row.verification_requested_at,
+    verificationRejectedReason: row.verification_rejected_reason,
+    clientVisibilityStatus: mapClientVisibilityStatus(row.client_visibility_status),
+    clientVisibilityReason: row.client_visibility_reason,
+    clientVisibilityChangedAt: row.client_visibility_changed_at,
     services: mapServices(row.professional_services ?? undefined),
     stats,
   };
@@ -183,50 +250,18 @@ function mapMyProfessionalRow(row: MyProfessionalRow): MyProfessional {
 export async function fetchMyProfessionalByAuthUserId(
   authUserId: string,
 ): Promise<MyProfessional | null> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  devLog('fetchMyProfessional auth user id:', authUserId);
-  devLog('fetchMyProfessional session user id:', session?.user?.id ?? '(none)');
-  devLog('fetchMyProfessional query:', {
-    table: 'professionals',
-    filter: { auth_user_id: authUserId },
-    note: 'colonna auth_user_id (non id / professional_id)',
-  });
-
-  const { data: probeRow, error: probeError } = await supabase
-    .from('professionals')
-    .select('id, auth_user_id')
-    .eq('auth_user_id', authUserId)
-    .maybeSingle();
-
-  devLog('fetchMyProfessional probe data:', probeRow);
-  if (probeError) {
-    devLogSupabaseError('fetchMyProfessional probe', probeError);
-    throw probeError;
-  }
-
-  if (!probeRow) {
-    devLog('fetchMyProfessional probe: nessuna riga per auth_user_id', authUserId);
-    return null;
-  }
-
   const { data, error } = await supabase
     .from('professionals')
     .select(MY_PROFESSIONAL_SELECT)
     .eq('auth_user_id', authUserId)
     .maybeSingle();
 
-  devLog('fetchMyProfessional full select data:', data ? { id: data.id, auth_user_id: data.auth_user_id } : null);
-
   if (error) {
-    devLogSupabaseError('fetchMyProfessional full select', error);
+    devLogSupabaseError('fetchMyProfessional', error);
     throw error;
   }
 
   if (!data) {
-    devLog('fetchMyProfessional full select: nessuna riga per auth_user_id', authUserId);
     return null;
   }
 

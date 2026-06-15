@@ -140,7 +140,7 @@ export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const professional = useProfessional(id ?? '');
+  const { professional } = useProfessional(id ?? '');
   const professionalId = id ?? '';
   const bookingRequest = useMemo(
     () => (professionalId ? getBookingRequest(professionalId) : undefined),

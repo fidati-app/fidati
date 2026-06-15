@@ -6,10 +6,14 @@ import { LayoutChangeEvent, Pressable, ScrollView, StyleSheet, View } from 'reac
 import { AppText } from '@/components/AppText';
 import { MiniLineChart } from '@/components/home/MiniLineChart';
 import { ProgressRing } from '@/components/home/ProgressRing';
+import { AdminChangeRequestsCard } from '@/components/profile/AdminChangeRequestsCard';
+import { ProfileIncompleteCard } from '@/components/home/ProfileIncompleteCard';
+import { ProfileVerificationApprovedCard } from '@/components/home/ProfileVerificationApprovedCard';
+import { ProfileVerificationReviewCard } from '@/components/home/ProfileVerificationReviewCard';
+import { ProfileCompletionSkeleton } from '@/components/profile/ProfileCompletionSkeleton';
 import { Colors } from '@/constants/colors';
-import { PROFILE_STEPS } from '@/constants/profileSteps';
 import { Design } from '@/constants/design';
-import { useProfileProgress } from '@/contexts/ProfileProgressContext';
+import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { useMyProfessionalProfile } from '@/hooks/useMyProfessionalProfile';
 import {
   getAppointmentsForDay,
@@ -17,6 +21,11 @@ import {
 } from '@/services/mockData';
 import { ProAppointment } from '@/types';
 import { getPendingRequestSummary, getUrgentRequestCopy } from '@/utils/requestSummary';
+import {
+  canProfessionalReceiveClients,
+  getProfessionalGreetingName,
+} from '@/utils/professionalDisplayName';
+import { useVerificationResume } from '@/hooks/useVerificationResume';
 
 const SCREEN_PAD = 22;
 const CARD_RADIUS = 24;
@@ -110,7 +119,7 @@ const PERIOD_DATA: Record<
 };
 
 const QUICK_ACTIONS = [
-  { icon: 'calendar-outline' as const, label: 'Disponibilità', route: '/(tabs)/agenda', bg: 'rgba(16, 185, 129, 0.12)', color: Colors.success },
+  { icon: 'calendar-outline' as const, label: 'Disponibilità', route: '/profile/availability', bg: 'rgba(16, 185, 129, 0.12)', color: Colors.success },
   { icon: 'pricetag-outline' as const, label: 'Prezzi', route: '/profile/services', bg: 'rgba(244, 114, 182, 0.14)', color: '#DB2777' },
   { icon: 'images-outline' as const, label: 'Portfolio', route: '/profile/portfolio', bg: 'rgba(139, 92, 246, 0.12)', color: '#7C3AED' },
   { icon: 'star-outline' as const, label: 'Recensioni', route: '/profile/reviews', bg: 'rgba(251, 191, 36, 0.16)', color: '#D97706' },
@@ -193,20 +202,42 @@ function TimelineItem({ apt, isLast }: { apt: ProAppointment; isLast?: boolean }
   );
 }
 
-export function HomeDashboard() {
+export function HomeDashboard({
+  showVerificationReviewCard = false,
+  showProfileIncompleteCard = false,
+  showVerifiedCelebrationCard = false,
+  onDismissVerifiedCard,
+}: {
+  showVerificationReviewCard?: boolean;
+  showProfileIncompleteCard?: boolean;
+  showVerifiedCelebrationCard?: boolean;
+  onDismissVerifiedCard?: () => void;
+} = {}) {
   const router = useRouter();
+  const { navigateToResume, resumeRoute } = useVerificationResume();
   const [period, setPeriod] = useState<PeriodKey>('today');
   const { profile } = useMyProfessionalProfile();
+  const {
+    percent: completionPercent,
+    completedCount: completionDone,
+    total: completionTotal,
+    pending: completionPending,
+    nextStep,
+    verificationStatus,
+    canSubmitVerification,
+    prerequisiteSteps,
+    isLoading: profileCompletionLoading,
+  } = useProfileCompletion();
 
   if (!profile) {
     return null;
   }
 
-  const firstName = profile.name.split(' ')[0];
+  const firstName = getProfessionalGreetingName(profile);
+  const showEarnings = canProfessionalReceiveClients(profile);
   const data = PERIOD_DATA[period];
   const isPositive = data.changePercent >= 0;
   const todayAppointments = getAppointmentsForDay('2026-06-09');
-  const { completedCount, totalSteps, percent, stepsLeft, isStepCompleted } = useProfileProgress();
   const requestSummary = useMemo(() => getPendingRequestSummary(MOCK_REQUESTS), []);
   const urgentCopy = useMemo(
     () => getUrgentRequestCopy(requestSummary.pendingCount, requestSummary.overdueCount),
@@ -235,30 +266,57 @@ export function HomeDashboard() {
         </View>
       </View>
 
-      <View style={styles.periodSegmentWrap}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.periodScroll}
-        >
-          {PERIODS.map((item) => {
-            const active = item.key === period;
-            return (
-              <Pressable
-                key={item.key}
-                onPress={() => setPeriod(item.key)}
-                style={[styles.periodPill, active && styles.periodPillActive]}
-              >
-                <AppText style={[styles.periodLabel, active && styles.periodLabelActive]}>
-                  {item.label}
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
+      {showProfileIncompleteCard ? (
+        <View style={styles.verificationCardWrap}>
+          <ProfileIncompleteCard
+            completionPercent={completionPercent}
+            completedSteps={completionDone}
+            totalSteps={completionTotal}
+            prerequisiteSteps={prerequisiteSteps}
+            nextStepTitle={nextStep?.title ?? null}
+          />
+        </View>
+      ) : null}
+
+      {showVerificationReviewCard ? (
+        <View style={styles.verificationCardWrap}>
+          <ProfileVerificationReviewCard />
+        </View>
+      ) : null}
+
+      {showVerifiedCelebrationCard ? (
+        <View style={styles.verificationCardWrap}>
+          <ProfileVerificationApprovedCard onDismiss={() => onDismissVerifiedCard?.()} />
+        </View>
+      ) : null}
+
+      {showEarnings ? (
+        <View style={styles.periodSegmentWrap}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.periodScroll}
+          >
+            {PERIODS.map((item) => {
+              const active = item.key === period;
+              return (
+                <Pressable
+                  key={item.key}
+                  onPress={() => setPeriod(item.key)}
+                  style={[styles.periodPill, active && styles.periodPillActive]}
+                >
+                  <AppText style={[styles.periodLabel, active && styles.periodLabelActive]}>
+                    {item.label}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
 
       <View style={styles.body}>
+        {showEarnings ? (
         <View style={styles.earningsCard}>
           <View style={styles.earningsLeft}>
             <AppText style={styles.earningsTitle} numberOfLines={2}>
@@ -319,36 +377,99 @@ export function HomeDashboard() {
             />
           </View>
         </View>
+        ) : null}
 
+        <AdminChangeRequestsCard variant="home" />
+
+        {!showProfileIncompleteCard && !showVerificationReviewCard ? (
         <Pressable
           style={styles.profileCard}
-          onPress={() => router.push('/profile/complete')}
+          onPress={() => {
+            if (verificationStatus === 'unverified' || verificationStatus === 'rejected') {
+              if (resumeRoute) {
+                navigateToResume();
+              } else {
+                router.push('/profile/photo');
+              }
+              return;
+            }
+            if (canSubmitVerification) {
+              if (resumeRoute) {
+                navigateToResume();
+              } else {
+                router.push('/profile/photo');
+              }
+              return;
+            }
+            router.push((nextStep?.route ?? '/profile/complete') as '/profile/complete');
+          }}
         >
-          <ProgressRing
-            percent={percent}
-            size={40}
-            stroke={5}
-            label={`${completedCount}/${totalSteps}`}
-            labelSize={10}
-          />
+          {profileCompletionLoading ? (
+            <View style={styles.profileRingSkeleton} />
+          ) : (
+            <ProgressRing
+              percent={completionPercent}
+              size={40}
+              stroke={5}
+              label={`${completionDone}/${completionTotal}`}
+              labelSize={10}
+            />
+          )}
           <View style={styles.profileCardCopy}>
-            <AppText style={styles.profileCardTitle}>Profilo completato</AppText>
-            <View style={styles.stepDots}>
-              {PROFILE_STEPS.map((step) => (
-                <View
-                  key={step.id}
-                  style={[styles.stepDot, isStepCompleted(step.id) && styles.stepDotDone]}
-                />
-              ))}
+            <View style={styles.profileCardTitleRow}>
+              <AppText style={styles.profileCardTitle}>
+                {profileCompletionLoading
+                  ? 'Caricamento profilo…'
+                  : `Profilo completato al ${completionPercent}%`}
+              </AppText>
+              {!profileCompletionLoading && verificationStatus === 'pending_review' ? (
+                <View style={styles.reviewBadge}>
+                  <AppText style={styles.reviewBadgeText}>In verifica</AppText>
+                </View>
+              ) : !profileCompletionLoading && verificationStatus === 'verified' ? (
+                <View style={styles.verifiedBadge}>
+                  <AppText style={styles.verifiedBadgeText}>Verificato</AppText>
+                </View>
+              ) : null}
             </View>
-            <AppText style={styles.profileCardLine} numberOfLines={1}>
-              {stepsLeft === 0
-                ? 'Tutti i 5 passaggi completati'
-                : `${stepsLeft} di ${totalSteps} passaggi rimanenti`}
-            </AppText>
+            {profileCompletionLoading ? (
+              <ProfileCompletionSkeleton variant="compact" />
+            ) : (
+              prerequisiteSteps.map((item) => (
+                <View key={item.id} style={styles.suggestionRow}>
+                  <Ionicons
+                    name={item.done ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={14}
+                    color={item.done ? Colors.success : Colors.textMuted}
+                  />
+                  <AppText
+                    style={[styles.suggestionText, item.done && styles.suggestionTextDone]}
+                    numberOfLines={1}
+                  >
+                    {item.title}
+                  </AppText>
+                </View>
+              ))
+            )}
+            {!profileCompletionLoading ? (
+              <AppText style={styles.profileCardLine} numberOfLines={2}>
+                {canSubmitVerification
+                  ? verificationStatus === 'rejected'
+                    ? '⭐ Reinvia richiesta verifica Fidati'
+                    : '⭐ Completa e invia verifica'
+                  : verificationStatus === 'pending_review'
+                    ? 'Richiesta inviata — in attesa di approvazione'
+                    : verificationStatus === 'verified'
+                      ? 'Profilo verificato Fidati'
+                      : nextStep
+                        ? `Prossimo: ${nextStep.title}`
+                        : 'Continua il completamento profilo'}
+              </AppText>
+            ) : null}
           </View>
           <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
         </Pressable>
+        ) : null}
 
         <View
           style={[
@@ -502,6 +623,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: SCREEN_PAD,
     paddingTop: 16,
     paddingBottom: 12,
+  },
+  verificationCardWrap: {
+    paddingHorizontal: SCREEN_PAD,
+    marginBottom: 12,
   },
   greetingRow: {
     flexDirection: 'row',
@@ -695,10 +820,22 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(7, 37, 74, 0.06)',
     ...Design.shadowSoft,
   },
+  profileRingSkeleton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.border,
+  },
   profileCardCopy: {
     flex: 1,
     minWidth: 0,
     gap: 3,
+  },
+  profileCardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
   },
   profileCardTitle: {
     fontSize: 12,
@@ -706,18 +843,42 @@ const styles = StyleSheet.create({
     color: Colors.navy,
     letterSpacing: -0.2,
   },
-  stepDots: {
+  reviewBadge: {
+    backgroundColor: 'rgba(251, 191, 36, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  reviewBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  verifiedBadge: {
+    backgroundColor: Colors.successSoft,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  verifiedBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.success,
+  },
+  suggestionRow: {
     flexDirection: 'row',
-    gap: 4,
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
   },
-  stepDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Colors.border,
+  suggestionText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
   },
-  stepDotDone: {
-    backgroundColor: Colors.success,
+  suggestionTextDone: {
+    color: Colors.navy,
   },
   profileCardLine: {
     fontSize: 10,

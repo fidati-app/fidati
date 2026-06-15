@@ -1,13 +1,25 @@
 export const PROFILE_STEP_TOTAL = 5;
 
-export type ProfileStepId = 'photo' | 'bio' | 'services' | 'portfolio' | 'zones';
+export type ProfileStepId =
+  | 'photo'
+  | 'documents'
+  | 'portfolio'
+  | 'availability'
+  | 'urgent_jobs';
+
+export type ProfileStepIcon =
+  | 'camera-outline'
+  | 'id-card-outline'
+  | 'images-outline'
+  | 'calendar-outline'
+  | 'flash-outline';
 
 export interface ProfileStep {
   id: ProfileStepId;
   title: string;
   subtitle: string;
   route: string;
-  icon: 'camera-outline' | 'document-text-outline' | 'pricetag-outline' | 'images-outline' | 'map-outline';
+  icon: ProfileStepIcon;
 }
 
 export const PROFILE_STEPS: ProfileStep[] = [
@@ -15,38 +27,37 @@ export const PROFILE_STEPS: ProfileStep[] = [
     id: 'photo',
     title: 'Foto profilo',
     subtitle: 'Aggiungi una foto professionale riconoscibile',
-    route: '/profile/complete',
+    route: '/profile/photo',
     icon: 'camera-outline',
   },
   {
-    id: 'bio',
-    title: 'Descrizione',
-    subtitle: 'Racconta la tua esperienza e specializzazioni',
-    route: '/profile/complete',
-    icon: 'document-text-outline',
-  },
-  {
-    id: 'services',
-    title: 'Servizi e prezzi',
-    subtitle: 'Definisci cosa offri e i tuoi listini',
-    route: '/profile/services',
-    icon: 'pricetag-outline',
+    id: 'documents',
+    title: 'Documento + selfie',
+    subtitle: 'Carica documento d’identità e selfie di verifica',
+    route: '/profile/documents',
+    icon: 'id-card-outline',
   },
   {
     id: 'portfolio',
-    title: 'Portfolio',
-    subtitle: 'Carica foto dei lavori svolti',
+    title: 'Foto lavori',
+    subtitle: 'Carica almeno 1 foto reale di un tuo lavoro (max 6)',
     route: '/profile/portfolio',
     icon: 'images-outline',
   },
   {
-    id: 'zones',
-    title: 'Zone servite',
-    subtitle: 'Indica le aree in cui lavori',
-    route: '/profile/zones',
-    icon: 'map-outline',
+    id: 'availability',
+    title: 'Disponibilità',
+    subtitle: 'Imposta giorni e orari in cui lavori',
+    route: '/profile/availability',
+    icon: 'calendar-outline',
+  },
+  {
+    id: 'urgent_jobs',
+    title: 'Lavori urgenti',
+    subtitle: 'Scegli se accettare richieste urgenti nella tua zona',
+    route: '/profile/urgent-jobs',
+    icon: 'flash-outline',
   },
 ];
 
-/** Passaggi già completati all'avvio (mock). */
-export const INITIAL_COMPLETED_STEPS: ProfileStepId[] = ['photo', 'bio', 'services'];
+export const INITIAL_COMPLETED_STEPS: ProfileStepId[] = [];

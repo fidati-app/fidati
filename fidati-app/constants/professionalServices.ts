@@ -6,6 +6,7 @@ export interface ProfessionalServiceItem {
   icon: CategoryIcon;
   description: string;
   fromPrice: number;
+  quoteRequired?: boolean;
   packages: ServicePackage[];
 }
 

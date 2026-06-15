@@ -6,12 +6,10 @@ import { ProfilePageShell } from '@/components/profile/ProfilePageShell';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Colors } from '@/constants/colors';
 import { Design } from '@/constants/design';
-import { useProfileProgress } from '@/contexts/ProfileProgressContext';
 import { useMyProfessionalProfile } from '@/hooks/useMyProfessionalProfile';
 
 export default function ProfileServicesScreen() {
   const router = useRouter();
-  const { completeStep } = useProfileProgress();
   const { profile } = useMyProfessionalProfile();
 
   if (!profile) {
@@ -37,13 +35,7 @@ export default function ProfileServicesScreen() {
           </View>
         )}
       </View>
-      <PrimaryButton
-        title="Salva e segna come completato"
-        onPress={() => {
-          completeStep('services');
-          router.back();
-        }}
-      />
+      <PrimaryButton title="Torna al profilo" variant="outline" onPress={() => router.back()} />
     </ProfilePageShell>
   );
 }

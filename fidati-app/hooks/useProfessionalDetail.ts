@@ -19,7 +19,7 @@ export function findPackageInServices(
   return undefined;
 }
 
-export function useProfessionalDetail(legacyId: string, professional: Professional | undefined) {
+export function useProfessionalDetail(professionalId: string, professional: Professional | undefined) {
   const mockServices = useMemo(
     () => (professional ? getProfessionalServices(professional.categorySlug) : []),
     [professional],
@@ -38,10 +38,10 @@ export function useProfessionalDetail(legacyId: string, professional: Profession
   }, [mockServices, mockGallery]);
 
   useEffect(() => {
-    if (!professional || !legacyId) return;
+    if (!professional || !professionalId) return;
 
     let active = true;
-    fetchProfessionalDetail(legacyId, professional).then((detail) => {
+    fetchProfessionalDetail(professionalId, professional).then((detail) => {
       if (!active || !detail) return;
       if (detail.services.length > 0) setServices(detail.services);
       if (detail.galleryImages.length > 0) setGalleryImages(detail.galleryImages);
@@ -50,7 +50,7 @@ export function useProfessionalDetail(legacyId: string, professional: Profession
     return () => {
       active = false;
     };
-  }, [legacyId, professional?.id]);
+  }, [professionalId, professional?.id]);
 
   return { services, galleryImages };
 }

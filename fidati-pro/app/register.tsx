@@ -1,493 +1,1217 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import {
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AuthFormField } from '@/components/auth/AuthFormField';
-import { CategoryPicker } from '@/components/auth/CategoryPicker';
+
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+
+
+import { StyleSheet, View } from 'react-native';
+
+
+
 import { AppText } from '@/components/AppText';
-import { PrimaryButton } from '@/components/PrimaryButton';
-import { PRO_SERVICE_CITIES } from '@/constants/proCategories';
+
+import { AboutYouStep } from '@/components/onboarding/AboutYouStep';
+
+import { AccountStep } from '@/components/onboarding/AccountStep';
+
+import { CompleteStep } from '@/components/onboarding/CompleteStep';
+
+import { EmailConfirmationStep } from '@/components/onboarding/EmailConfirmationStep';
+
+import { HumanLoadingOverlay } from '@/components/onboarding/HumanLoadingOverlay';
+
+import { IntroStep } from '@/components/onboarding/IntroStep';
+
+import { PricingStep } from '@/components/onboarding/PricingStep';
+
+import { ServicesStep } from '@/components/onboarding/ServicesStep';
+
+import { WorkAreaStep } from '@/components/onboarding/WorkAreaStep';
+
 import { useAuth } from '@/contexts/AuthContext';
+
+import { getOnboardingProgress, OnboardingPhase } from '@/constants/onboarding';
+
 import { Colors } from '@/constants/colors';
+
 import { Design } from '@/constants/design';
+
+import { supabase } from '@/lib/supabaseClient';
+
 import { createProfessionalProfile } from '@/services/proRegistrationService';
+
+import { isEmailAlreadyRegistered } from '@/services/emailAvailabilityService';
+
+import { isPhoneAlreadyRegistered } from '@/services/phoneAvailabilityService';
+
+import { savePendingRegistration } from '@/services/pendingRegistrationStorage';
+
+import { OnboardingAccountKind, SelectedOnboardingService, ServicePriceDraft } from '@/types/onboarding';
+
 import {
-  clearPendingRegistration,
-  savePendingRegistration,
-} from '@/services/pendingRegistrationStorage';
-import {
-  parsePriceFrom,
-  validateRegistrationStep1,
-  validateRegistrationStep2,
-} from '@/utils/registrationValidation';
 
-const LOGO = require('@/components/logo-fidatipro.png');
+  validateOnboardingAccount,
 
-export default function RegisterScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { signUp } = useAuth();
+  validateOnboardingStep1,
 
-  const [step, setStep] = useState<1 | 2>(1);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [phone, setPhone] = useState('');
-  const [categorySlug, setCategorySlug] = useState('');
-  const [baseCity, setBaseCity] = useState('');
-  const [serviceAreasRaw, setServiceAreasRaw] = useState('');
-  const [priceFromRaw, setPriceFromRaw] = useState('');
-  const [description, setDescription] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  validateOnboardingStep2,
 
-  const handleContinue = () => {
-    setError(null);
-    const validationError = validateRegistrationStep1({
-      name,
-      email,
-      password,
-      confirmPassword,
-      phone,
-    });
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-    setStep(2);
-  };
+  validateOnboardingStep3,
 
-  const handleRegister = async () => {
-    setError(null);
-    setSuccessMessage(null);
+  validateOnboardingStep4Fields,
 
-    const step1Error = validateRegistrationStep1({
-      name,
-      email,
-      password,
-      confirmPassword,
-      phone,
-    });
-    if (step1Error) {
-      setError(step1Error);
-      setStep(1);
-      return;
-    }
+  hasOnboardingStep4Errors,
 
-    const step2Error = validateRegistrationStep2({
-      categorySlug,
-      baseCity,
-      serviceAreasRaw,
-      priceFromRaw,
-      description,
-    });
-    if (step2Error) {
-      setError(step2Error);
-      return;
-    }
+  buildOnboardingDisplayName,
 
-    setIsSubmitting(true);
+} from '@/utils/onboardingValidation';
 
-    const profileInput = {
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      categorySlug,
-      baseCity: baseCity.trim(),
-      serviceAreasRaw,
-      priceFrom: parsePriceFrom(priceFromRaw),
-      description: description.trim(),
-    };
+import { parseServicePrices, ServicePriceInput } from '@/utils/pricing';
 
-    const signUpResult = await signUp(email, password);
-    if (signUpResult.error) {
-      setIsSubmitting(false);
-      setError(signUpResult.error);
-      return;
-    }
+import { slugifyServiceTitle } from '@/utils/serviceSlug';
 
-    const authUserId = signUpResult.userId;
-    if (!authUserId) {
-      setIsSubmitting(false);
-      setError('Registrazione non completata. Riprova.');
-      return;
-    }
+import { isValidEmail } from '@/utils/registrationValidation';
 
-    try {
-      const pendingPayload = {
-        ...profileInput,
-        authUserId,
-        savedAt: new Date().toISOString(),
-      };
+import { isValidPhoneForAvailabilityCheck } from '@/utils/phoneUtils';
 
-      if (signUpResult.needsEmailConfirmation) {
-        await savePendingRegistration(pendingPayload);
-        setIsSubmitting(false);
-        setSuccessMessage(
-          'Registrazione completata. Controlla la tua email per confermare l’account.',
-        );
-        return;
-      }
 
-      await savePendingRegistration(pendingPayload);
-      await createProfessionalProfile(authUserId, profileInput);
-      await clearPendingRegistration();
-      setIsSubmitting(false);
-      router.replace('/(tabs)');
-    } catch (err) {
-      setIsSubmitting(false);
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Impossibile creare il profilo professionista. Riprova.',
-      );
-    }
-  };
 
-  return (
-    <View style={styles.screen}>
-      <LinearGradient
-        colors={[...Colors.heroGradient]}
-        style={[styles.hero, { paddingTop: insets.top + 20 }]}
-      >
-        <Image source={LOGO} style={styles.logo} resizeMode="contain" accessibilityLabel="Fidati Pro" />
-        <AppText style={styles.heroTitle}>Registrati come professionista</AppText>
-        <AppText style={styles.heroSubtitle}>
-          {step === 1 ? 'Step 1 di 2 · Account' : 'Step 2 di 2 · Dati professionali'}
-        </AppText>
-        <View style={styles.steps}>
-          <View style={[styles.stepDot, step >= 1 && styles.stepDotActive]} />
-          <View style={[styles.stepLine, step >= 2 && styles.stepLineActive]} />
-          <View style={[styles.stepDot, step >= 2 && styles.stepDotActive]} />
-        </View>
-      </LinearGradient>
+function devLogRegister(label: string, payload: unknown) {
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={[styles.form, { paddingBottom: insets.bottom + 24 }]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {successMessage ? (
-            <View style={styles.successBlock}>
-              <AppText style={styles.successTitle}>Quasi fatto!</AppText>
-              <AppText style={styles.successBody}>{successMessage}</AppText>
-              <PrimaryButton
-                title="Vai al login"
-                onPress={() => router.replace('/login')}
-                style={styles.cta}
-              />
-            </View>
-          ) : step === 1 ? (
-            <>
-              <AuthFormField
-                label="Nome professionista / attività"
-                value={name}
-                onChangeText={setName}
-                placeholder="Es. Mario Rossi · Elettricista"
-                autoCapitalize="words"
-                icon="briefcase-outline"
-                editable={!isSubmitting}
-              />
-              <AuthFormField
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-                placeholder="nome@email.com"
-                keyboardType="email-address"
-                autoComplete="email"
-                icon="mail-outline"
-                editable={!isSubmitting}
-              />
-              <AuthFormField
-                label="Password"
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Minimo 6 caratteri"
-                secureTextEntry
-                autoComplete="password"
-                editable={!isSubmitting}
-              />
-              <AuthFormField
-                label="Conferma password"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                placeholder="Ripeti la password"
-                secureTextEntry
-                autoComplete="password"
-                editable={!isSubmitting}
-              />
-              <AuthFormField
-                label="Telefono"
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="+39 333 123 4567"
-                keyboardType="phone-pad"
-                icon="call-outline"
-                editable={!isSubmitting}
-              />
-              <PrimaryButton title="Continua" onPress={handleContinue} style={styles.cta} />
-            </>
-          ) : (
-            <>
-              <CategoryPicker
-                value={categorySlug}
-                onChange={setCategorySlug}
-                disabled={isSubmitting}
-              />
+  if (__DEV__) {
 
-              <AuthFormField
-                label="Città base"
-                value={baseCity}
-                onChangeText={setBaseCity}
-                placeholder="Es. Barletta"
-                autoCapitalize="words"
-                icon="business-outline"
-                editable={!isSubmitting}
-              />
+    console.log(`[Fidati Pro Register] ${label}`, payload);
 
-              <View style={styles.cityHints}>
-                {PRO_SERVICE_CITIES.map((city) => (
-                  <Pressable
-                    key={city}
-                    disabled={isSubmitting}
-                    onPress={() => {
-                      setBaseCity(city);
-                      if (!serviceAreasRaw.trim()) {
-                        setServiceAreasRaw(city);
-                      }
-                    }}
-                    style={styles.cityHintChip}
-                  >
-                    <AppText style={styles.cityHintText}>{city}</AppText>
-                  </Pressable>
-                ))}
-              </View>
+  }
 
-              <AuthFormField
-                label="Zone operative"
-                value={serviceAreasRaw}
-                onChangeText={setServiceAreasRaw}
-                placeholder="Es. Barletta, Andria, Trani"
-                autoCapitalize="words"
-                icon="map-outline"
-                editable={!isSubmitting}
-              />
-              <AppText style={styles.hint}>
-                Inserisci almeno una città. Se includi Barletta, comparirai nell’app clienti quando
-                viene selezionata Barletta (dopo verifica).
-              </AppText>
-
-              <AuthFormField
-                label="Prezzo da (€/h)"
-                value={priceFromRaw}
-                onChangeText={setPriceFromRaw}
-                placeholder="Es. 45"
-                keyboardType="decimal-pad"
-                icon="pricetag-outline"
-                editable={!isSubmitting}
-              />
-
-              <AuthFormField
-                label="Breve descrizione"
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Presentati in poche righe…"
-                autoCapitalize="sentences"
-                icon="document-text-outline"
-                multiline
-                editable={!isSubmitting}
-              />
-
-              <View style={styles.rowActions}>
-                <PrimaryButton
-                  title="Indietro"
-                  variant="outline"
-                  onPress={() => setStep(1)}
-                  disabled={isSubmitting}
-                  style={styles.halfButton}
-                />
-                <PrimaryButton
-                  title="Registrati"
-                  onPress={handleRegister}
-                  loading={isSubmitting}
-                  disabled={isSubmitting}
-                  style={styles.halfButton}
-                />
-              </View>
-            </>
-          )}
-
-          {error ? (
-            <View style={styles.feedbackError}>
-              <AppText style={styles.feedbackErrorText}>{error}</AppText>
-            </View>
-          ) : null}
-
-          {!successMessage ? (
-            <Pressable
-              onPress={() => router.replace('/login')}
-              hitSlop={8}
-              style={({ pressed }) => [styles.backLink, pressed && styles.pressed]}
-            >
-              <AppText style={styles.backLinkText}>Hai già un account? Accedi</AppText>
-            </Pressable>
-          ) : null}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
-  );
 }
 
+
+
+function buildServicePriceInputs(
+
+  selectedServices: SelectedOnboardingService[],
+
+  servicePrices: Record<string, ServicePriceDraft>,
+
+): ServicePriceInput[] {
+
+  return selectedServices.map((service) => ({
+
+    title: service.title,
+
+    serviceSlug: service.serviceSlug,
+
+    minRaw: servicePrices[service.serviceSlug]?.minRaw ?? '',
+
+    maxRaw: servicePrices[service.serviceSlug]?.maxRaw ?? '',
+
+    quoteRequired: servicePrices[service.serviceSlug]?.quoteRequired ?? false,
+
+    isCustom: service.isCustom,
+
+  }));
+
+}
+
+
+
+export default function RegisterScreen() {
+
+  const router = useRouter();
+
+  const { signUp, signIn, beginRegistration, finishRegistration } = useAuth();
+
+
+
+  const [phase, setPhase] = useState<OnboardingPhase>('intro');
+
+  const [error, setError] = useState<string | null>(null);
+
+
+
+  const [email, setEmail] = useState('');
+
+  const [password, setPassword] = useState('');
+
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  const [phone, setPhone] = useState('');
+
+  const [accountKind, setAccountKind] = useState<OnboardingAccountKind>('individual');
+
+  const [firstName, setFirstName] = useState('');
+
+  const [lastName, setLastName] = useState('');
+
+  const [companyName, setCompanyName] = useState('');
+
+  const [emailAvailabilityError, setEmailAvailabilityError] = useState<string | null>(null);
+
+  const [emailChecking, setEmailChecking] = useState(false);
+
+  const emailCheckRequestRef = useRef(0);
+
+  const [phoneAvailabilityError, setPhoneAvailabilityError] = useState<string | null>(null);
+
+  const [phoneChecking, setPhoneChecking] = useState(false);
+
+  const phoneCheckRequestRef = useRef(0);
+
+  const [priceFieldErrors, setPriceFieldErrors] = useState<Record<string, { min?: string; max?: string }>>({});
+
+  const [categorySlug, setCategorySlug] = useState('');
+
+  const [mainCity, setMainCity] = useState<string | null>(null);
+
+  const [nearbyCities, setNearbyCities] = useState<string[]>([]);
+
+  const [mainCityQuery, setMainCityQuery] = useState('');
+
+  const [nearbyCityQuery, setNearbyCityQuery] = useState('');
+
+  const [selectedServices, setSelectedServices] = useState<SelectedOnboardingService[]>([]);
+
+  const [servicePrices, setServicePrices] = useState<Record<string, ServicePriceDraft>>({});
+
+
+
+  const progress = useMemo(() => getOnboardingProgress(phase), [phase]);
+
+
+
+  const servicePriceInputs = useMemo(
+
+    () => buildServicePriceInputs(selectedServices, servicePrices),
+
+    [selectedServices, servicePrices],
+
+  );
+
+
+
+  const buildProfileInput = useCallback(() => {
+
+    const parsedServices = parseServicePrices(servicePriceInputs);
+
+    const displayName = buildOnboardingDisplayName({ accountKind, firstName, lastName, companyName });
+
+
+
+    const serviceAreas = mainCity ? [mainCity, ...nearbyCities] : [];
+
+
+
+    return {
+
+      name: displayName,
+
+      accountKind,
+
+      firstName: accountKind === 'individual' ? firstName.trim() : undefined,
+
+      lastName: accountKind === 'individual' ? lastName.trim() : undefined,
+
+      companyName: accountKind === 'company' ? companyName.trim() : undefined,
+
+      email: email.trim(),
+
+      phone: phone.trim(),
+
+      categorySlug,
+
+      cities: serviceAreas,
+
+      services: parsedServices.map((service) => {
+
+        const source = selectedServices.find((item) => item.serviceSlug === service.serviceSlug);
+
+        return {
+
+          title: service.title,
+
+          serviceSlug: service.serviceSlug,
+
+          isCustom: source?.isCustom ?? false,
+
+          priceMin: service.priceMin,
+
+          priceMax: service.priceMax,
+
+          quoteRequired: service.quoteRequired,
+
+        };
+
+      }),
+
+      description: '',
+
+    };
+
+  }, [accountKind, categorySlug, companyName, email, firstName, lastName, mainCity, nearbyCities, phone, selectedServices, servicePriceInputs]);
+
+
+
+  const checkEmailAvailability = useCallback(async (rawEmail: string) => {
+
+    const trimmed = rawEmail.trim();
+
+    if (!isValidEmail(trimmed)) {
+
+      setEmailAvailabilityError(null);
+
+      return;
+
+    }
+
+
+
+    const requestId = ++emailCheckRequestRef.current;
+
+    setEmailChecking(true);
+
+
+
+    try {
+
+      const taken = await isEmailAlreadyRegistered(trimmed);
+
+      if (requestId !== emailCheckRequestRef.current) return;
+
+      setEmailAvailabilityError(
+
+        taken ? 'Questa email è già collegata a un account Fidati.' : null,
+
+      );
+
+    } catch {
+
+      if (requestId !== emailCheckRequestRef.current) return;
+
+      setEmailAvailabilityError(null);
+
+    } finally {
+
+      if (requestId === emailCheckRequestRef.current) {
+
+        setEmailChecking(false);
+
+      }
+
+    }
+
+  }, []);
+
+
+
+  useEffect(() => {
+
+    if (!email.trim()) {
+
+      setEmailAvailabilityError(null);
+
+      setEmailChecking(false);
+
+      return;
+
+    }
+
+
+
+    const timer = setTimeout(() => {
+
+      void checkEmailAvailability(email);
+
+    }, 500);
+
+
+
+    return () => clearTimeout(timer);
+
+  }, [checkEmailAvailability, email]);
+
+
+
+  const checkPhoneAvailability = useCallback(async (rawPhone: string) => {
+
+    const trimmed = rawPhone.trim();
+
+    if (!isValidPhoneForAvailabilityCheck(trimmed)) {
+
+      setPhoneAvailabilityError(null);
+
+      return;
+
+    }
+
+
+
+    const requestId = ++phoneCheckRequestRef.current;
+
+    if (__DEV__) {
+
+      console.log('[REGISTER] phone check start', trimmed);
+
+    }
+
+    setPhoneChecking(true);
+
+
+
+    try {
+
+      const taken = await isPhoneAlreadyRegistered(trimmed);
+
+      if (requestId !== phoneCheckRequestRef.current) return;
+
+      if (__DEV__) {
+
+        console.log('[REGISTER] phone check result', { taken });
+
+      }
+
+      setPhoneAvailabilityError(
+
+        taken ? 'Questo numero è già collegato a un account Fidati.' : null,
+
+      );
+
+    } catch {
+
+      if (requestId !== phoneCheckRequestRef.current) return;
+
+      setPhoneAvailabilityError(null);
+
+    } finally {
+
+      if (requestId === phoneCheckRequestRef.current) {
+
+        setPhoneChecking(false);
+
+      }
+
+    }
+
+  }, []);
+
+
+
+  useEffect(() => {
+
+    if (!phone.trim()) {
+
+      setPhoneAvailabilityError(null);
+
+      setPhoneChecking(false);
+
+      return;
+
+    }
+
+
+
+    const timer = setTimeout(() => {
+
+      void checkPhoneAvailability(phone);
+
+    }, 500);
+
+
+
+    return () => clearTimeout(timer);
+
+  }, [checkPhoneAvailability, phone]);
+
+
+
+  const addNearbyCity = useCallback((city: string) => {
+
+    const trimmed = city.trim();
+
+    if (!trimmed || mainCity?.toLowerCase() === trimmed.toLowerCase()) return;
+
+    setNearbyCities((current) => {
+
+      if (current.some((c) => c.toLowerCase() === trimmed.toLowerCase())) return current;
+
+      return [...current, trimmed];
+
+    });
+
+    setNearbyCityQuery('');
+
+  }, [mainCity]);
+
+
+
+  const removeNearbyCity = useCallback((city: string) => {
+
+    setNearbyCities((current) => current.filter((c) => c !== city));
+
+  }, []);
+
+
+
+  const toggleService = useCallback((title: string, isCustom = false) => {
+
+    const trimmed = title.trim();
+
+    if (!trimmed) return;
+
+
+
+    const serviceSlug = slugifyServiceTitle(trimmed);
+
+
+
+    setSelectedServices((current) => {
+
+      const exists = current.some((service) => service.serviceSlug === serviceSlug);
+
+      if (exists) {
+
+        return current.filter((service) => service.serviceSlug !== serviceSlug);
+
+      }
+
+      return [...current, { title: trimmed, serviceSlug, isCustom }];
+
+    });
+
+
+
+    setServicePrices((current) => {
+
+      if (serviceSlug in current) {
+
+        const next = { ...current };
+
+        delete next[serviceSlug];
+
+        return next;
+
+      }
+
+      return {
+
+        ...current,
+
+        [serviceSlug]: { title: trimmed, minRaw: '', maxRaw: '', quoteRequired: false },
+
+      };
+
+    });
+
+  }, []);
+
+
+
+  const addCustomService = useCallback(
+
+    (title: string) => {
+
+      toggleService(title, true);
+
+    },
+
+    [toggleService],
+
+  );
+
+
+
+  const changeServicePrice = useCallback(
+
+    (serviceSlug: string, field: 'minRaw' | 'maxRaw', value: string) => {
+
+      setServicePrices((current) => ({
+
+        ...current,
+
+        [serviceSlug]: {
+
+          title: current[serviceSlug]?.title ?? serviceSlug,
+
+          minRaw: field === 'minRaw' ? value : (current[serviceSlug]?.minRaw ?? ''),
+
+          maxRaw: field === 'maxRaw' ? value : (current[serviceSlug]?.maxRaw ?? ''),
+
+          quoteRequired: current[serviceSlug]?.quoteRequired ?? false,
+
+        },
+
+      }));
+
+      setPriceFieldErrors((currentErrors) => {
+
+        if (!currentErrors[serviceSlug]) return currentErrors;
+
+        const next = { ...currentErrors };
+
+        delete next[serviceSlug];
+
+        return next;
+
+      });
+
+    },
+
+    [],
+
+  );
+
+
+
+  const toggleQuoteRequired = useCallback((serviceSlug: string, quoteRequired: boolean) => {
+    const source = selectedServices.find((s) => s.serviceSlug === serviceSlug);
+    if (!source?.isCustom) return;
+
+    setServicePrices((current) => ({
+      ...current,
+      [serviceSlug]: {
+        title: current[serviceSlug]?.title ?? source.title,
+        minRaw: quoteRequired ? '' : (current[serviceSlug]?.minRaw ?? ''),
+        maxRaw: quoteRequired ? '' : (current[serviceSlug]?.maxRaw ?? ''),
+        quoteRequired,
+      },
+    }));
+
+    if (quoteRequired) {
+      setPriceFieldErrors((currentErrors) => {
+        if (!currentErrors[serviceSlug]) return currentErrors;
+        const next = { ...currentErrors };
+        delete next[serviceSlug];
+        return next;
+      });
+    }
+  }, [selectedServices]);
+
+
+
+  const resolveAuthUserId = useCallback(async (): Promise<string | null> => {
+
+    const signUpResult = await signUp(email, password);
+
+
+
+    if (!signUpResult.error && signUpResult.userId) {
+
+      return signUpResult.userId;
+
+    }
+
+
+
+    if (signUpResult.error?.includes('Esiste già')) {
+
+      const signInResult = await signIn(email, password);
+
+      if (signInResult.error) {
+
+        throw new Error(signInResult.error);
+
+      }
+
+      const { data } = await supabase.auth.getSession();
+
+      return data.session?.user?.id ?? null;
+
+    }
+
+
+
+    if (signUpResult.error) {
+
+      throw new Error(signUpResult.error);
+
+    }
+
+
+
+    return signUpResult.userId ?? null;
+
+  }, [email, password, signIn, signUp]);
+
+
+
+  const submitRegistration = useCallback(async () => {
+
+    setError(null);
+
+    setPhase('submitting');
+
+    beginRegistration();
+
+
+
+    const profileInput = buildProfileInput();
+
+    devLogRegister('submit payload', profileInput);
+
+
+
+    try {
+
+      const signUpResult = await signUp(email, password);
+
+      let authUserId = signUpResult.userId;
+
+
+
+      if (signUpResult.error?.includes('Esiste già')) {
+
+        const signInResult = await signIn(email, password);
+
+        if (signInResult.error) {
+
+          throw new Error(signInResult.error);
+
+        }
+
+        const { data } = await supabase.auth.getSession();
+
+        authUserId = data.session?.user?.id;
+
+      } else if (signUpResult.error) {
+
+        throw new Error(signUpResult.error);
+
+      }
+
+
+
+      if (!authUserId) {
+
+        throw new Error('Registrazione non completata. Riprova.');
+
+      }
+
+
+
+      if (signUpResult.needsEmailConfirmation) {
+
+        await savePendingRegistration({
+
+          ...profileInput,
+
+          authUserId,
+
+          savedAt: new Date().toISOString(),
+
+        });
+
+        await supabase.auth.signOut();
+
+        await finishRegistration();
+
+        setPhase('email-confirmation');
+
+        return;
+
+      }
+
+
+
+      await createProfessionalProfile(authUserId, profileInput);
+
+      setPhase('complete');
+
+    } catch (err) {
+
+      devLogRegister('submit error', err);
+
+      await supabase.auth.signOut().catch(() => {});
+
+      await finishRegistration();
+
+      setPhase('step4');
+
+      setError(
+
+        err instanceof Error ? err.message : 'Impossibile creare il profilo professionista. Riprova.',
+
+      );
+
+    }
+
+  }, [beginRegistration, buildProfileInput, email, finishRegistration, password, signIn, signUp]);
+
+
+
+
+  if (phase === 'intro') {
+
+    return <IntroStep onStart={() => setPhase('account')} />;
+
+  }
+
+
+
+  if (phase === 'account') {
+
+    return (
+
+      <>
+
+        <AccountStep
+
+          progress={progress}
+
+          errorMessage={error}
+
+          email={email}
+
+          password={password}
+
+          confirmPassword={confirmPassword}
+
+          phone={phone}
+
+          emailError={emailAvailabilityError}
+
+          emailChecking={emailChecking}
+
+          phoneError={phoneAvailabilityError}
+
+          phoneChecking={phoneChecking}
+
+          onChangeEmail={(value) => {
+
+            setEmail(value);
+
+            if (emailAvailabilityError) {
+
+              setEmailAvailabilityError(null);
+
+            }
+
+          }}
+
+          onBlurEmail={() => void checkEmailAvailability(email)}
+
+          onChangePassword={setPassword}
+
+          onChangeConfirmPassword={setConfirmPassword}
+
+          onChangePhone={(value) => {
+
+            setPhone(value);
+
+            if (phoneAvailabilityError) {
+
+              setPhoneAvailabilityError(null);
+
+            }
+
+          }}
+
+          onBlurPhone={() => void checkPhoneAvailability(phone)}
+
+          onContinue={() => {
+
+            const validationError = validateOnboardingAccount({
+
+              email,
+
+              password,
+
+              confirmPassword,
+
+              phone,
+
+              emailTaken: Boolean(emailAvailabilityError),
+
+              phoneTaken: Boolean(phoneAvailabilityError),
+
+            });
+
+            setError(validationError);
+
+            if (!validationError && !emailChecking && !phoneChecking) setPhase('step1');
+
+          }}
+
+        />
+
+      </>
+
+    );
+
+  }
+
+
+
+  if (phase === 'step1') {
+
+    return (
+
+      <>
+
+        <AboutYouStep
+
+          progress={progress}
+
+          errorMessage={error}
+
+          accountKind={accountKind}
+
+          firstName={firstName}
+
+          lastName={lastName}
+
+          companyName={companyName}
+
+          categorySlug={categorySlug}
+
+          onChangeAccountKind={setAccountKind}
+
+          onChangeFirstName={setFirstName}
+
+          onChangeLastName={setLastName}
+
+          onChangeCompanyName={setCompanyName}
+
+          onChangeCategory={setCategorySlug}
+
+          onContinue={() => {
+
+            const validationError = validateOnboardingStep1({
+
+              accountKind,
+
+              firstName,
+
+              lastName,
+
+              companyName,
+
+              categorySlug,
+
+            });
+
+            setError(validationError);
+
+            if (!validationError) setPhase('step2');
+
+          }}
+
+        />
+
+      </>
+
+    );
+
+  }
+
+
+
+  if (phase === 'step2') {
+
+    return (
+
+      <>
+
+        <WorkAreaStep
+
+          progress={progress}
+
+          errorMessage={error}
+
+          mainCity={mainCity}
+
+          nearbyCities={nearbyCities}
+
+          mainQuery={mainCityQuery}
+
+          nearbyQuery={nearbyCityQuery}
+
+          onChangeMainQuery={setMainCityQuery}
+
+          onChangeNearbyQuery={setNearbyCityQuery}
+
+          onSetMainCity={(city) => {
+
+            const trimmed = city.trim();
+
+            if (!trimmed) return;
+
+            if (mainCity?.toLowerCase() === trimmed.toLowerCase()) {
+
+              setMainCityQuery('');
+
+              return;
+
+            }
+
+            setMainCity(trimmed);
+
+            setMainCityQuery('');
+
+          }}
+
+          onClearMainCity={() => {
+
+            setMainCity(null);
+
+            setNearbyCities([]);
+
+            setMainCityQuery('');
+
+            setNearbyCityQuery('');
+
+          }}
+
+          onAddNearbyCity={addNearbyCity}
+
+          onRemoveNearbyCity={removeNearbyCity}
+
+          onContinue={() => {
+
+            const validationError = validateOnboardingStep2(mainCity);
+
+            setError(validationError);
+
+            if (!validationError) setPhase('step3');
+
+          }}
+
+        />
+
+      </>
+
+    );
+
+  }
+
+
+
+  if (phase === 'step3') {
+
+    return (
+
+      <>
+
+        <ServicesStep
+
+          progress={progress}
+
+          errorMessage={error}
+
+          categorySlug={categorySlug}
+
+          selectedServices={selectedServices}
+
+          onToggleService={toggleService}
+
+          onAddCustomService={addCustomService}
+
+          onContinue={() => {
+
+            const validationError = validateOnboardingStep3(
+
+              selectedServices.map((service) => service.title),
+
+            );
+
+            if (validationError) {
+
+              setError(validationError);
+
+              return;
+
+            }
+
+
+
+            devLogRegister('selected services', selectedServices);
+
+
+
+            setServicePrices((current) => {
+
+              const next = { ...current };
+
+              for (const service of selectedServices) {
+
+                if (!next[service.serviceSlug]) {
+
+                  next[service.serviceSlug] = {
+
+                    title: service.title,
+
+                    minRaw: '',
+
+                    maxRaw: '',
+
+                    quoteRequired: false,
+
+                  };
+
+                }
+
+              }
+
+              return next;
+
+            });
+
+
+
+            setError(null);
+
+            setPhase('step4');
+
+          }}
+
+        />
+
+      </>
+
+    );
+
+  }
+
+
+
+  if (phase === 'step4') {
+
+    return (
+
+      <>
+
+        <PricingStep
+
+          progress={progress}
+
+          errorMessage={error}
+
+          services={servicePriceInputs}
+
+          fieldErrors={priceFieldErrors}
+
+          onChangeServicePrice={changeServicePrice}
+
+          onToggleQuoteRequired={toggleQuoteRequired}
+
+          onContinue={() => {
+
+            devLogRegister('pricing step input', servicePriceInputs);
+
+
+
+            const fieldErrors = validateOnboardingStep4Fields(parseServicePrices(servicePriceInputs));
+
+            setPriceFieldErrors(fieldErrors);
+
+
+
+            if (hasOnboardingStep4Errors(fieldErrors)) {
+
+              setError(null);
+
+              return;
+
+            }
+
+
+
+            setError(null);
+
+            void submitRegistration();
+
+          }}
+
+        />
+
+      </>
+
+    );
+
+  }
+
+
+
+  if (phase === 'submitting') {
+
+    return <HumanLoadingOverlay visible />;
+
+  }
+
+
+
+  if (phase === 'email-confirmation') {
+
+    return <EmailConfirmationStep onGoToLogin={() => router.replace('/login')} />;
+
+  }
+
+
+
+  if (phase === 'complete') {
+
+    return (
+
+      <CompleteStep
+
+        onEnterApp={async () => {
+
+          await finishRegistration();
+
+          router.replace('/(tabs)');
+
+        }}
+
+      />
+
+    );
+
+  }
+
+
+
+  return null;
+
+}
+
+
+
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  flex: { flex: 1 },
-  hero: {
-    paddingHorizontal: Design.spacing.screen,
-    paddingBottom: 22,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    gap: 4,
-  },
-  logo: {
-    width: 132,
-    height: 40,
-    marginBottom: 8,
-  },
-  heroTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: Colors.white,
-    letterSpacing: -0.4,
-  },
-  heroSubtitle: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.72)',
-  },
-  steps: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 12,
-  },
-  stepDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-  },
-  stepDotActive: {
-    backgroundColor: Colors.success,
-  },
-  stepLine: {
-    width: 36,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  stepLineActive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.75)',
-  },
-  form: {
-    paddingHorizontal: Design.spacing.screen,
-    paddingTop: 22,
-    gap: 14,
-  },
-  cityHints: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: -6,
-  },
-  cityHintChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: Design.radius.full,
-    backgroundColor: Colors.card,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  cityHintText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.navy,
-  },
-  hint: {
-    fontSize: 12,
-    lineHeight: 17,
-    color: Colors.textSecondary,
-    marginTop: -6,
-  },
-  rowActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  halfButton: {
-    flex: 1,
-  },
-  cta: {
-    marginTop: 4,
-  },
-  feedbackError: {
+
+  errorBox: {
+
+    position: 'absolute',
+
+    left: Design.spacing.screen,
+
+    right: Design.spacing.screen,
+
+    bottom: 100,
+
     backgroundColor: Colors.errorSoft,
+
     borderRadius: Design.radius.md,
+
     borderWidth: 1,
+
     borderColor: 'rgba(239, 68, 68, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+
+    padding: 12,
+
   },
-  feedbackErrorText: {
+
+  errorText: {
+
     fontSize: 13,
+
     fontWeight: '600',
+
     color: Colors.error,
+
     lineHeight: 18,
+
   },
-  successBlock: {
-    gap: 12,
-    backgroundColor: Colors.successSoft,
-    borderRadius: Design.radius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.22)',
-    padding: 16,
-  },
-  successTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.navy,
-  },
-  successBody: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: Colors.textSecondary,
-  },
-  backLink: {
-    alignSelf: 'center',
-    paddingVertical: 6,
-  },
-  backLinkText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.navy,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
+
 });
+

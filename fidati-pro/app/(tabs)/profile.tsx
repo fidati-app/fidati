@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/AppText';
+import { AdminChangeRequestsCard } from '@/components/profile/AdminChangeRequestsCard';
 import { PortfolioShowcase } from '@/components/profile/PortfolioShowcase';
 import { ProfileBlock, ProfileRow, ReviewCard } from '@/components/profile/ProfileSections';
 import { ProfileStatsBar } from '@/components/profile/ProfileStatsBar';
@@ -18,6 +19,7 @@ import { Design } from '@/constants/design';
 
 const SETTINGS = [
   { icon: 'construct-outline' as const, label: 'Servizi e prezzi', route: '/profile/services' },
+  { icon: 'calendar-outline' as const, label: 'Disponibilità', route: '/profile/availability' },
   { icon: 'map-outline' as const, label: 'Zone servite', route: '/profile/zones' },
   { icon: 'wallet-outline' as const, label: 'Guadagni e fatture', route: '/profile/earnings' },
   { icon: 'notifications-outline' as const, label: 'Notifiche', route: '/profile/notifications' },
@@ -62,6 +64,10 @@ export default function ProfileScreen() {
 
       <ProfileStatsBar stats={profile.stats} memberSince={profile.memberSince} />
 
+      <View style={styles.adminRequestsWrap}>
+        <AdminChangeRequestsCard variant="profile" />
+      </View>
+
       <View style={styles.body}>
         <ProfileBlock title="Descrizione">
           <AppText style={styles.bio}>{profile.bio}</AppText>
@@ -97,6 +103,10 @@ export default function ProfileScreen() {
               </View>
             ))}
           </View>
+          <Pressable style={styles.manageLink} onPress={() => router.push('/profile/zones')}>
+            <AppText style={styles.manageLinkText}>Gestisci zone</AppText>
+            <Ionicons name="chevron-forward" size={14} color={Colors.success} />
+          </Pressable>
         </ProfileBlock>
 
         <ProfileBlock title="Portfolio lavori">
@@ -171,6 +181,11 @@ const styles = StyleSheet.create({
   name: { fontSize: 22, fontWeight: '700', color: Colors.white },
   category: { fontSize: 13, color: 'rgba(255,255,255,0.72)', marginTop: 4, textAlign: 'center' },
   heroMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, justifyContent: 'center' },
+  adminRequestsWrap: {
+    paddingHorizontal: Design.spacing.screen,
+    marginTop: -12,
+    marginBottom: 4,
+  },
   body: {
     paddingHorizontal: Design.spacing.screen,
     paddingTop: 24,
@@ -204,6 +219,17 @@ const styles = StyleSheet.create({
     borderRadius: Design.radius.full,
   },
   zoneText: { fontSize: 12, fontWeight: '600', color: Colors.navy },
+  manageLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 12,
+  },
+  manageLinkText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.success,
+  },
   menu: {
     backgroundColor: Colors.card,
     borderRadius: Design.radius.lg,

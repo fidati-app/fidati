@@ -1,5 +1,6 @@
 export type RequestStatus = 'pending' | 'accepted' | 'declined' | 'completed';
 export type AccountStatus = 'verified' | 'in_review' | 'unverified';
+export type VerificationStatus = 'unverified' | 'pending_review' | 'verified' | 'rejected' | 'changes_requested';
 export type DayAvailability = 'free' | 'partial' | 'full' | 'off';
 
 export interface ProRequest {
@@ -58,6 +59,8 @@ export interface ProService {
   id: string;
   title: string;
   priceFrom: number;
+  priceMax: number | null;
+  quoteRequired: boolean;
   duration: string;
 }
 
@@ -117,10 +120,17 @@ export interface ProProfile {
 }
 
 /** Profilo professionista collegato all'account auth (Supabase). */
+export type ClientVisibilityStatus = 'visible' | 'hidden_changes' | 'pending_review';
+export type ProfessionalAccountKind = 'individual' | 'company';
+
 export interface MyProfessional {
   id: string;
   legacyId: string | null;
   authUserId: string;
+  accountKind: ProfessionalAccountKind;
+  firstName: string | null;
+  lastName: string | null;
+  companyName: string | null;
   name: string;
   category: string;
   categorySlug: string | null;
@@ -147,6 +157,12 @@ export interface MyProfessional {
   responseRate: number;
   accountStatus: AccountStatus;
   profileViews: number;
+  verificationStatus: VerificationStatus;
+  verificationRequestedAt: string | null;
+  verificationRejectedReason: string | null;
+  clientVisibilityStatus: ClientVisibilityStatus;
+  clientVisibilityReason: string | null;
+  clientVisibilityChangedAt: string | null;
   services: ProService[];
   stats: ProDashboardStats;
 }
@@ -174,4 +190,19 @@ export interface WeeklyAvailabilitySlot {
   shortLabel: string;
   ranges: string[];
   status: DayAvailability;
+}
+
+/** Disponibilità settimanale configurabile (professional_availability). */
+export interface WeeklyScheduleDay {
+  dayOfWeek: number;
+  dayLabel: string;
+  shortLabel: string;
+  isAvailable: boolean;
+  startTime: string | null;
+  endTime: string | null;
+}
+
+export interface ProfessionalAvailabilitySettings {
+  schedule: WeeklyScheduleDay[];
+  acceptsUrgentJobs: boolean;
 }

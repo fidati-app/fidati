@@ -11,9 +11,11 @@ interface ProfilePageShellProps {
   title: string;
   subtitle?: string;
   children: React.ReactNode;
+  /** Se false, il contenuto gestisce scroll/tastiera internamente (es. fix flow zone). */
+  scroll?: boolean;
 }
 
-export function ProfilePageShell({ title, subtitle, children }: ProfilePageShellProps) {
+export function ProfilePageShell({ title, subtitle, children, scroll = true }: ProfilePageShellProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -28,12 +30,18 @@ export function ProfilePageShell({ title, subtitle, children }: ProfilePageShell
           {subtitle ? <AppText style={styles.subtitle}>{subtitle}</AppText> : null}
         </View>
       </View>
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {children}
-      </ScrollView>
+      {scroll ? (
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
+          showsVerticalScrollIndicator={false}
+        >
+          {children}
+        </ScrollView>
+      ) : (
+        <View style={[styles.content, styles.contentFlex, { paddingBottom: insets.bottom }]}>
+          {children}
+        </View>
+      )}
     </View>
   );
 }
@@ -80,5 +88,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Design.spacing.screen,
     paddingTop: 16,
     gap: 14,
+  },
+  contentFlex: {
+    flex: 1,
+    paddingTop: 0,
   },
 });

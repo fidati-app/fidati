@@ -34,9 +34,15 @@ export default function ProfileStackLayout() {
       }}
     >
       <Stack.Screen name="complete" />
+      <Stack.Screen name="photo" />
+      <Stack.Screen name="documents" />
       <Stack.Screen name="services" />
       <Stack.Screen name="portfolio" />
       <Stack.Screen name="zones" />
+      <Stack.Screen name="availability" />
+      <Stack.Screen name="urgent-jobs" />
+      <Stack.Screen name="verification" />
+      <Stack.Screen name="verification-submit" options={{ animation: 'fade' }} />
       <Stack.Screen name="earnings" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="settings" />

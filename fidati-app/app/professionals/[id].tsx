@@ -11,6 +11,7 @@ import { RatingStars } from '@/components/RatingStars';
 import { ProfessionalBookingBar } from '@/components/professionals/ProfessionalBookingBar';
 import { ProfessionalHeroCarousel } from '@/components/professionals/ProfessionalHeroCarousel';
 import { ProfessionalServiceCard } from '@/components/professionals/ProfessionalServiceCard';
+import { ProfessionalUnavailableScreen } from '@/components/professionals/ProfessionalUnavailableScreen';
 import { ServiceCategoryOfferCard } from '@/components/service/ServiceCategoryOfferCard';
 import { Colors } from '@/constants/colors';
 import { Design } from '@/constants/design';
@@ -21,13 +22,21 @@ import {
 } from '@/hooks/useProfessionalDetail';
 import { useProfessional } from '@/hooks/useProfessionals';
 import { getProfessionalOffers } from '@/utils/professionalOffers';
+import { isProfessionalClientVisible } from '@/utils/professionalVisibility';
 
 export default function ProfessionalDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const professional = useProfessional(id ?? '');
-  const { services, galleryImages } = useProfessionalDetail(id ?? '', professional);
+  const routeId = id ?? '';
+  const { professional, isLoading } = useProfessional(routeId);
+  const { services, galleryImages } = useProfessionalDetail(routeId, professional);
+
+  useEffect(() => {
+    if (__DEV__) {
+      console.log('[Fidati] ProfessionalDetailScreen:param', { routeId });
+    }
+  }, [routeId]);
   const offers = useMemo(
     () => (professional ? getProfessionalOffers(professional) : []),
     [professional],
@@ -43,12 +52,24 @@ export default function ProfessionalDetailScreen() {
     }
   }, [services, expandedServiceId]);
 
+  if (isLoading) {
+    return (
+      <View style={styles.notFound}>
+        <AppText variant="subtitle">Caricamento…</AppText>
+      </View>
+    );
+  }
+
   if (!professional) {
     return (
       <View style={styles.notFound}>
         <AppText variant="subtitle">Professionista non trovato</AppText>
       </View>
     );
+  }
+
+  if (!isProfessionalClientVisible(professional)) {
+    return <ProfessionalUnavailableScreen />;
   }
 
   const activePackage =

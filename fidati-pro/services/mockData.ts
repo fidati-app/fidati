@@ -26,10 +26,10 @@ export const MOCK_PRO_PROFILE: ProProfile = {
   baseCity: 'Milano',
   serviceZones: ['Centro', 'Porta Nuova', 'Isola', 'Navigli', 'Lambrate'],
   services: [
-    { id: 's1', title: 'Pulizia standard appartamento', priceFrom: 65, duration: '2–3 ore' },
-    { id: 's2', title: 'Pulizia profonda', priceFrom: 95, duration: '3–4 ore' },
-    { id: 's3', title: 'Post-ristrutturazione', priceFrom: 150, duration: '4–6 ore' },
-    { id: 's4', title: 'Ufficio fino a 80 mq', priceFrom: 120, duration: '3 ore' },
+    { id: 's1', title: 'Pulizia standard appartamento', priceFrom: 65, priceMax: null, quoteRequired: false, duration: '2–3 ore' },
+    { id: 's2', title: 'Pulizia profonda', priceFrom: 95, priceMax: null, quoteRequired: false, duration: '3–4 ore' },
+    { id: 's3', title: 'Post-ristrutturazione', priceFrom: 150, priceMax: null, quoteRequired: false, duration: '4–6 ore' },
+    { id: 's4', title: 'Ufficio fino a 80 mq', priceFrom: 120, priceMax: null, quoteRequired: false, duration: '3 ore' },
   ],
   portfolio: [
     {

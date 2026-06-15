@@ -1,4 +1,3 @@
-import { usePathname, useSegments } from 'expo-router';
 import {
   createContext,
   useCallback,
@@ -11,7 +10,7 @@ import {
 } from 'react';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { devLog, devLogSupabaseError } from '@/lib/devLog';
+import { devLogSupabaseError } from '@/lib/devLog';
 import { fetchMyProfessionalByAuthUserId } from '@/services/professionalsMeService';
 import {
   clearPendingRegistration,
@@ -40,44 +39,30 @@ function mapLoadError(message: string): string {
   return 'Impossibile caricare il profilo professionista. Riprova.';
 }
 
-function resolveRouteDecision(input: {
-  authLoading: boolean;
-  isAuthenticated: boolean;
-  sessionPresent: boolean;
-  professionalStatus: MyProfessionalStatus;
-  professionalError: string | null;
-}): string {
-  if (input.authLoading) return 'splash/loading';
-  if (!input.isAuthenticated || !input.sessionPresent) return 'login';
-  if (input.professionalStatus === 'idle' || input.professionalStatus === 'loading') {
-    return 'professional-loading';
-  }
-  if (input.professionalStatus === 'error') return 'professional-error';
-  if (input.professionalStatus === 'not_found') return 'professional-not-found';
-  if (input.professionalStatus === 'ready') return 'app/home/dashboard';
-  return 'unknown';
-}
-
 export function MyProfessionalProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const segments = useSegments();
   const { user, isAuthenticated, isLoading: authLoading, session } = useAuth();
   const [status, setStatus] = useState<MyProfessionalStatus>('idle');
   const [myProfessional, setMyProfessional] = useState<MyProfessional | null>(null);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+  const hasProfileRef = useRef(false);
 
-  const loadProfile = useCallback(async (authUserId: string) => {
+  const loadProfile = useCallback(async (authUserId: string, options?: { background?: boolean }) => {
     const requestId = ++requestIdRef.current;
-    setStatus('loading');
-    setError(null);
-    devLog('professional profile loading start');
-    devLog('professional profile auth user id:', authUserId);
+    const background = Boolean(options?.background && hasProfileRef.current);
+
+    if (__DEV__) {
+      console.log('[PROFILE] loading', { requestId, background });
+    }
+
+    if (!background) {
+      setStatus('loading');
+      setError(null);
+    }
 
     const timeoutId = setTimeout(() => {
       if (requestId !== requestIdRef.current) return;
       requestIdRef.current += 1;
-      devLog('professional profile loading timeout');
       setMyProfessional(null);
       setStatus('error');
       setError('Timeout caricamento profilo. Controlla la connessione e riprova.');
@@ -88,18 +73,15 @@ export function MyProfessionalProvider({ children }: { children: ReactNode }) {
       if (requestId !== requestIdRef.current) return;
 
       if (!profile) {
-        devLog('professional profile: nessuna riga, controllo registrazione pending');
         const pending = await loadPendingRegistration();
-        devLog('professional profile pending registration:', pending ? { authUserId: pending.authUserId } : null);
 
         if (pending?.authUserId === authUserId) {
-          devLog('professional profile: completamento pending per auth user id', authUserId);
           try {
             profile = await completePendingRegistrationForUser(authUserId, pending);
             await clearPendingRegistration();
             if (requestId !== requestIdRef.current) return;
           } catch (pendingErr) {
-            devLogSupabaseError('professional profile pending completion', pendingErr);
+            devLogSupabaseError('completePendingRegistration', pendingErr);
             throw pendingErr;
           }
         }
@@ -108,30 +90,29 @@ export function MyProfessionalProvider({ children }: { children: ReactNode }) {
       if (!profile) {
         setMyProfessional(null);
         setStatus('not_found');
-        console.log('[Fidati Pro] profilo professionista non trovato — auth user id:', authUserId);
-        devLog('professional profile not found for auth user id', authUserId);
         return;
       }
 
       setMyProfessional(profile);
+      hasProfileRef.current = true;
       setStatus('ready');
-      devLog('professional profile ready', profile.id);
     } catch (err) {
       if (requestId !== requestIdRef.current) return;
-      devLogSupabaseError('professional profile load', err);
+      devLogSupabaseError('loadProfessionalProfile', err);
       setMyProfessional(null);
       setStatus('error');
       setError(mapLoadError(err instanceof Error ? err.message : 'Errore sconosciuto'));
-      devLog('professional profile error', err instanceof Error ? err.message : err);
     } finally {
       clearTimeout(timeoutId);
-      devLog('professional profile loading end');
     }
   }, []);
 
   const refresh = useCallback(async () => {
     if (!user?.id) return;
-    await loadProfile(user.id);
+    if (__DEV__) {
+      console.log('[PROFILE] refetch', { background: hasProfileRef.current });
+    }
+    await loadProfile(user.id, { background: hasProfileRef.current });
   }, [loadProfile, user?.id]);
 
   useEffect(() => {
@@ -140,12 +121,8 @@ export function MyProfessionalProvider({ children }: { children: ReactNode }) {
     }
 
     if (!isAuthenticated || !user?.id || !session?.user) {
-      devLog('route decision: skip profile load — no authenticated user', {
-        isAuthenticated,
-        userId: user?.id ?? null,
-        sessionPresent: Boolean(session),
-      });
       requestIdRef.current += 1;
+      hasProfileRef.current = false;
       setMyProfessional(null);
       setError(null);
       setStatus('idle');
@@ -154,38 +131,6 @@ export function MyProfessionalProvider({ children }: { children: ReactNode }) {
 
     void loadProfile(user.id);
   }, [authLoading, isAuthenticated, session, user?.id, loadProfile]);
-
-  useEffect(() => {
-    if (status !== 'ready') return;
-
-    devLog('route decision snapshot after professional ready', {
-      authLoading,
-      userId: user?.id ?? null,
-      sessionPresent: Boolean(session),
-      professionalLoading: false,
-      professionalId: myProfessional?.id ?? null,
-      professionalError: error,
-      currentRoute: pathname,
-      segments,
-      finalDecision: resolveRouteDecision({
-        authLoading,
-        isAuthenticated,
-        sessionPresent: Boolean(session),
-        professionalStatus: status,
-        professionalError: error,
-      }),
-    });
-  }, [
-    authLoading,
-    error,
-    isAuthenticated,
-    myProfessional?.id,
-    pathname,
-    segments,
-    session,
-    status,
-    user?.id,
-  ]);
 
   const value = useMemo(
     () => ({

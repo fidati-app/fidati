@@ -71,7 +71,7 @@ export default function BookingDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const booking = getBookingById(id ?? '');
-  const professional = useProfessional(booking?.professionalId ?? '');
+  const { professional } = useProfessional(booking?.professionalId ?? '');
 
   if (!booking) {
     return (

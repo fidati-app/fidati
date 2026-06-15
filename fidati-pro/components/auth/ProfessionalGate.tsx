@@ -5,7 +5,6 @@ import { ProfessionalLoadErrorScreen } from '@/components/auth/ProfessionalLoadE
 import { ProfessionalNotFoundScreen } from '@/components/auth/ProfessionalNotFoundScreen';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMyProfessional } from '@/contexts/MyProfessionalContext';
-import { devLog } from '@/lib/devLog';
 
 /** Overlay sopra lo stack autenticato finché il profilo non è risolto. */
 export function ProfessionalGate() {
@@ -21,10 +20,8 @@ export function ProfessionalGate() {
   if (status === 'idle' || status === 'loading') {
     content = <AuthLoadingScreen caption="Caricamento profilo professionista…" />;
   } else if (status === 'not_found') {
-    devLog('route decision: professional-not-found');
     content = <ProfessionalNotFoundScreen onRetry={refresh} onSignOut={signOut} />;
   } else if (status === 'error') {
-    devLog('route decision: professional-error');
     content = (
       <ProfessionalLoadErrorScreen
         message={error}

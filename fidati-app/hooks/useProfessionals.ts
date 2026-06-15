@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { CATEGORY_SLUGS } from '@/constants/categoryCatalog';
 import {
-  fetchProfessionalByLegacyId,
+  fetchProfessionalById,
   fetchProfessionals,
   fetchProfessionalsByCategory,
 } from '@/services/professionalsService';
@@ -64,23 +64,41 @@ export function useProfessionalsByCategory(slug: string) {
 
 export function useProfessional(id: string) {
   const [professional, setProfessional] = useState<Professional | undefined>();
+  const [isLoading, setIsLoading] = useState(Boolean(id));
 
   useEffect(() => {
     if (!id) {
       setProfessional(undefined);
+      setIsLoading(false);
       return;
     }
+
     let active = true;
     setProfessional(undefined);
-    fetchProfessionalByLegacyId(id).then((data) => {
-      if (active) setProfessional(data ?? undefined);
-    });
+    setIsLoading(true);
+
+    if (__DEV__) {
+      console.log('[Fidati] useProfessional:load', { id });
+    }
+
+    fetchProfessionalById(id)
+      .then((data) => {
+        if (!active) return;
+        if (__DEV__) {
+          console.log('[Fidati] useProfessional:result', { id, found: Boolean(data) });
+        }
+        setProfessional(data ?? undefined);
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
     return () => {
       active = false;
     };
   }, [id]);
 
-  return professional;
+  return { professional, isLoading };
 }
 
 export function useAllProfessionals() {

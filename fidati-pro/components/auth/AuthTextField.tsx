@@ -4,6 +4,7 @@ import { StyleSheet, TextInput, View } from 'react-native';
 import { AppText } from '@/components/AppText';
 import { Colors } from '@/constants/colors';
 import { Design } from '@/constants/design';
+import { PASSWORD_TEXT_INPUT_PROPS } from '@/constants/passwordInput';
 
 interface AuthTextFieldProps {
   label: string;
@@ -44,11 +45,11 @@ export function AuthTextField({
           placeholder={placeholder}
           placeholderTextColor={Colors.textMuted}
           secureTextEntry={secureTextEntry}
-          autoCapitalize={autoCapitalize}
           keyboardType={keyboardType}
-          autoComplete={autoComplete}
-          autoCorrect={false}
           editable={editable}
+          {...(secureTextEntry
+            ? PASSWORD_TEXT_INPUT_PROPS
+            : { autoComplete, autoCorrect: false, autoCapitalize })}
         />
       </View>
     </View>

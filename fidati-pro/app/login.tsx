@@ -98,7 +98,6 @@ export default function LoginScreen() {
             onChangeText={setPassword}
             placeholder="••••••••"
             secureTextEntry
-            autoComplete="password"
             editable={!isSubmitting}
           />
 

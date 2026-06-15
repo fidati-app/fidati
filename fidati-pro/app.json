@@ -9,10 +9,14 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.fidati.pro"
+      "bundleIdentifier": "com.fidati.pro",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Fidati Pro usa la fotocamera per scansionare documenti d'identità e selfie di verifica."
+      }
     },
     "android": {
       "package": "com.fidati.pro",
+      "permissions": ["CAMERA"],
       "adaptiveIcon": {
         "backgroundColor": "#07254A",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -34,6 +38,21 @@
           "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
           "backgroundColor": "#07254A"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Fidati Pro usa la galleria per foto profilo, documenti e portfolio.",
+          "cameraPermission": "Fidati Pro usa la fotocamera per selfie e foto lavori."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Fidati Pro usa la fotocamera per scansionare documenti d'identità e selfie di verifica.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ]
     ],

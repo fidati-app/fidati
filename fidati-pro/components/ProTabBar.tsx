@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/colors';
+import { useAdminChangeRequests } from '@/contexts/AdminChangeRequestsContext';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
@@ -26,6 +27,8 @@ interface ProTabBarProps {
 export function ProTabBar({ state, navigation }: ProTabBarProps) {
   const insets = useSafeAreaInsets();
   const barHeight = 56 + insets.bottom;
+  const { requests } = useAdminChangeRequests();
+  const pendingAdminCount = requests.filter((r) => !r.isInReview).length;
 
   return (
     <View style={[styles.wrap, { height: barHeight }]}>
@@ -40,6 +43,8 @@ export function ProTabBar({ state, navigation }: ProTabBarProps) {
           if (!config) return null;
           const focused = state.index === index;
           const tint = focused ? Colors.accent : 'rgba(255, 255, 255, 0.48)';
+          const showAdminBadge =
+            pendingAdminCount > 0 && (route.name === 'index' || route.name === 'profile');
           return (
             <Pressable
               key={route.key}
@@ -48,7 +53,16 @@ export function ProTabBar({ state, navigation }: ProTabBarProps) {
               }}
               style={styles.item}
             >
-              <Ionicons name={focused ? config.icon : config.iconOutline} size={21} color={tint} />
+              <View style={styles.iconWrap}>
+                <Ionicons name={focused ? config.icon : config.iconOutline} size={21} color={tint} />
+                {showAdminBadge ? (
+                  <View style={styles.tabBadge}>
+                    <Text style={styles.tabBadgeText}>
+                      {pendingAdminCount > 9 ? '9+' : pendingAdminCount}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
               <Text style={[styles.label, { color: tint }, focused && styles.labelActive]} numberOfLines={1}>
                 {config.label}
               </Text>
@@ -95,6 +109,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 3,
     position: 'relative',
+  },
+  iconWrap: {
+    position: 'relative',
+    width: 28,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -10,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: Colors.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: Colors.navy,
+  },
+  tabBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: Colors.white,
   },
   label: {
     fontSize: 10,

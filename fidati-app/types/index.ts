@@ -57,6 +57,8 @@ export interface ServicePackage {
   duration: string;
 }
 
+export type ClientVisibilityStatus = 'visible' | 'hidden_changes' | 'pending_review';
+
 export interface Professional {
   id: string;
   name: string;
@@ -92,6 +94,8 @@ export interface Professional {
   createdAt?: string;
   /** Data verifica, se disponibile in futuro */
   verifiedAt?: string;
+  clientVisibilityStatus?: ClientVisibilityStatus;
+  accountStatus?: string;
 }
 
 export type BookingStatus = 'confirmed' | 'incoming' | 'completed' | 'cancelled';
